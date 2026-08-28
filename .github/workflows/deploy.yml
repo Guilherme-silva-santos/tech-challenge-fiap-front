@@ -1,0 +1,104 @@
+# Build e deploy do site estático no S3.
+#
+# A infra (bucket, role OIDC e permissões) nasce na stack `base/` do
+# repositório da API: https://github.com/pedruvaz/tech-challenge-fiap
+# (`infra/terraform/base/`). Depois do `terraform apply` de lá, configurar
+# aqui, uma vez:
+#   Secret  AWS_DEPLOY_ROLE_ARN   output `github_actions_role_arn` da stack base/
+#   Var     AWS_REGION            ex.: us-east-1
+#   Var     S3_BUCKET_NAME        output `frontend_bucket_name` da stack base/
+#   Var     VITE_API_URL          URL pública da API (NLB do EKS)
+#
+# Enquanto `S3_BUCKET_NAME` não existir, o job de deploy fica skipped e o
+# repositório segue verde — só o build roda. Criar a var é o que arma o
+# deploy.
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-s3-${{ github.ref }}
+  # PR antigo pode ser cancelado por push novo; deploy em andamento, não —
+  # cancelar um sync no meio deixa o site pela metade.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  id-token: write # OIDC assume a role da AWS
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configura Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Instala dependências
+        run: npm ci
+
+      # Variável VITE_* é resolvida no build — o valor vai parar dentro do
+      # bundle. A env do runner tem precedência sobre o .env commitado, que
+      # aponta para localhost e só serve para desenvolvimento.
+      - name: Build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: npm run build
+
+      - name: Guarda o dist para o deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
+  deploy:
+    name: Sync no S3
+    needs: build
+    # Deploy só de push na master (ou disparo manual), e só depois que a
+    # infra existir e a var S3_BUCKET_NAME for criada.
+    if: github.event_name != 'pull_request' && vars.S3_BUCKET_NAME != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixa o dist do build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Autentica na AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Duas passadas para o cache trabalhar a favor:
+      #   1. assets/ tem hash no nome — cache imutável de 1 ano
+      #   2. o resto (index.html, arquivos do public/) muda de conteúdo sem
+      #      mudar de nome — no-cache
+      # Os assets sobem primeiro de propósito: o index.html novo nunca pode
+      # apontar para arquivo que ainda não subiu.
+      - name: Sync no S3
+        env:
+          BUCKET: ${{ vars.S3_BUCKET_NAME }}
+        run: |
+          aws s3 sync dist/assets "s3://$BUCKET/assets" --delete \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 sync dist "s3://$BUCKET" --delete --exclude "assets/*" \
+            --cache-control "no-cache"
+
+      - name: URL do site
+        run: echo "http://${{ vars.S3_BUCKET_NAME }}.s3-website-${{ vars.AWS_REGION }}.amazonaws.com" >> "$GITHUB_STEP_SUMMARY"
