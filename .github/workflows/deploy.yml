@@ -3,8 +3,9 @@
 # A infra (bucket, role OIDC e permissões) nasce na stack `base/` do
 # repositório da API: https://github.com/pedruvaz/tech-challenge-fiap
 # (`infra/terraform/base/`). Depois do `terraform apply` de lá, configurar
-# aqui, uma vez:
-#   Secret  AWS_DEPLOY_ROLE_ARN   output `github_actions_role_arn` da stack base/
+# aqui, uma vez (tudo como repository variable — ARN de role não é segredo,
+# quem barra assume indevido é o trust OIDC):
+#   Var     AWS_DEPLOY_ROLE_ARN   output `github_actions_role_arn` da stack base/
 #   Var     AWS_REGION            ex.: us-east-1
 #   Var     S3_BUCKET_NAME        output `frontend_bucket_name` da stack base/
 #   Var     VITE_API_URL          URL pública da API (NLB do EKS)
@@ -82,7 +83,7 @@ jobs:
       - name: Autentica na AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       # Duas passadas para o cache trabalhar a favor:
