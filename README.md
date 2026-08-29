@@ -39,9 +39,11 @@ A infra (bucket, role OIDC, permissões) vive na stack `base/` do [repositório 
 
 | Onde | Nome | Valor |
 | --- | --- | --- |
-| Secret | `AWS_DEPLOY_ROLE_ARN` | output `github_actions_role_arn` da stack `base/` |
+| Variable | `AWS_DEPLOY_ROLE_ARN` | output `github_actions_role_arn` da stack `base/` |
 | Variable | `AWS_REGION` | ex.: `us-east-1` |
 | Variable | `S3_BUCKET_NAME` | output `frontend_bucket_name` da stack `base/` |
 | Variable | `VITE_API_URL` | URL pública da API (NLB do EKS) |
+
+Tudo variable, nenhum secret: ARN de role não é informação sensível — quem impede assume indevido é o trust OIDC da role, restrito aos repositórios do projeto.
 
 Enquanto `S3_BUCKET_NAME` não existir, o job de deploy fica skipped — criar a var é o que arma o deploy. A URL do site sai no output `frontend_website_endpoint` do Terraform (e no summary de cada run): é o endpoint de website do S3, HTTP puro, com `error_document` apontando para o `index.html` para as rotas do React Router sobreviverem a refresh.
