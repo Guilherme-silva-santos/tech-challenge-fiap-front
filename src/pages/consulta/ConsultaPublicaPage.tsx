@@ -1,37 +1,85 @@
+import { ArrowLeft, Search } from 'lucide-react'
+import logoOficina from '@/assets/logo-oficina.png'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { StatusPill } from '@/components/StatusPill'
 import { useOrdemServicoPublica } from '@/hooks/queries/use-ordens-servico'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { formatCurrency, formatDate, STATUS_COLOR, STATUS_LABEL } from '@/lib/utils'
+import { formatCurrency, formatDate, STATUS_LABEL } from '@/lib/utils'
 import type { OrdemServico } from '@/types'
-import { CheckCircle2, ChevronRight, Wrench } from 'lucide-react'
-import { STATUS_ORDER } from '@/lib/utils'
-import { cn } from '@/lib/utils'
-import type { Status } from '@/types'
 
-function StatusBar({ current }: { current: Status }) {
-  const currentIdx = STATUS_ORDER.indexOf(current)
+const etapas = [
+  { num: '01', label: 'Recebida', desc: 'O carro deu entrada e a OS foi aberta.' },
+  { num: '02', label: 'Em diagnóstico', desc: 'O mecânico está avaliando o que precisa ser feito.' },
+  { num: '03', label: 'Aguardando aprovação', desc: 'O orçamento está pronto e depende do seu ok.', accent: true },
+  { num: '04', label: 'Em execução', desc: 'O serviço aprovado está sendo feito.' },
+  { num: '05', label: 'Finalizada', desc: 'Serviço concluído, pronto para retirada.' },
+  { num: '06', label: 'Entregue', desc: 'O carro foi devolvido ao cliente.' },
+]
+
+function FieldStyle({ id, value, onChange, placeholder, mono }: { id: string; value: string; onChange: (v: string) => void; placeholder: string; mono?: boolean }) {
   return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {STATUS_ORDER.map((s, i) => {
-        const done = i <= currentIdx
-        const active = s === current
-        return (
-          <div key={s} className="flex items-center gap-1">
-            <div className={cn(
-              'flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
-              active ? 'bg-blue-600 text-white' : done ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400',
-            )}>
-              {done && !active && <CheckCircle2 className="h-3 w-3" />}
-              {STATUS_LABEL[s]}
+    <input
+      id={id}
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{
+        width: '100%', minHeight: 48, padding: '0 14px',
+        border: '1px solid var(--field-border)', borderRadius: 8,
+        background: 'var(--surface)', fontFamily: mono ? "'IBM Plex Mono', monospace" : 'inherit',
+        fontSize: 15, color: 'var(--ink)', outline: 'none', boxSizing: 'border-box',
+        transition: 'border-color .2s, box-shadow .2s',
+      }}
+      onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(194,65,12,.14)' }}
+      onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--field-border)'; e.currentTarget.style.boxShadow = 'none' }}
+    />
+  )
+}
+
+function ResultPanel({ result }: { result: OrdemServico }) {
+  return (
+    <div className="anim-rise" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 28, display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 560 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 20 }}>Resultado</span>
+        <StatusPill status={result.status} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--muted)' }}>Veículo</span>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 500, fontSize: 15 }}>{result.veiculo.placa}</span>
+          <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>{result.veiculo.marca} {result.veiculo.modelo}</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--muted)' }}>Valor estimado</span>
+          <span style={{ fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 28, color: 'var(--ink)' }}>{formatCurrency(result.valorFinal)}</span>
+        </div>
+      </div>
+
+      {result.historicoStatus.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--muted)' }}>Histórico</span>
+          {result.historicoStatus.map((h) => (
+            <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
+              <span style={{ flex: 1, color: 'var(--ink-2)' }}>
+                {h.statusAnterior
+                  ? `${STATUS_LABEL[h.statusAnterior]} → ${STATUS_LABEL[h.statusNovo]}`
+                  : `Criado como: ${STATUS_LABEL[h.statusNovo]}`}
+              </span>
+              <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: "'IBM Plex Mono', monospace" }}>
+                {formatDate(h.criadoEm)}
+              </span>
             </div>
-            {i < STATUS_ORDER.length - 1 && <ChevronRight className={cn('h-3 w-3', i < currentIdx ? 'text-green-400' : 'text-slate-300')} />}
-          </div>
-        )
-      })}
+          ))}
+        </div>
+      )}
+
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>
+        Tem alguma dúvida?{' '}
+        <Link to="/login" style={{ color: 'var(--accent)' }}>Acesse o sistema</Link>
+      </p>
     </div>
   )
 }
@@ -61,97 +109,91 @@ export function ConsultaPublicaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 flex items-start justify-center p-6 pt-16">
-      <div className="w-full max-w-2xl">
-        {/* Header */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="h-14 w-14 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg mb-4">
-            <Wrench className="h-7 w-7 text-white" />
+    <div style={{ minHeight: '100vh', fontFamily: "'IBM Plex Sans', system-ui, sans-serif", color: 'var(--ink)', background: 'var(--bg)', padding: '32px 24px 64px' }}>
+      <div style={{ maxWidth: 1120, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 40 }}>
+
+        <header className="anim-rise anim-d1" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <img src={logoOficina} alt="Oficina Mecânica" style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
+            <strong style={{ fontFamily: 'Barlow, sans-serif', fontSize: 19, color: 'var(--ink)' }}>Oficina Mecânica</strong>
           </div>
-          <h1 className="text-2xl font-bold text-white">Consulta de Ordem de Serviço</h1>
-          <p className="text-slate-400 text-sm mt-1">Acompanhe o status do seu veículo sem precisar fazer login</p>
-        </div>
+          <Link
+            to="/login"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, textDecoration: 'none', color: 'var(--ink-2)', fontWeight: 500, fontSize: 14, transition: 'color .2s' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--ink-2)')}
+          >
+            <ArrowLeft size={18} aria-hidden="true" />
+            Acesso da equipe
+          </Link>
+        </header>
 
-        {/* Form */}
-        <Card className="mb-6">
-          <CardContent className="pt-6 space-y-4">
-            <div className="space-y-1.5">
-              <Label>ID da Ordem de Serviço</Label>
-              <Input
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                value={osId}
-                onChange={(e) => setOsId(e.target.value)}
-                className="font-mono"
-              />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 48, alignItems: 'flex-start' }}>
+
+          <section style={{ flex: '999 1 480px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 28 }}>
+            <div className="anim-rise anim-d2" style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 560 }}>
+              <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)' }}>Consulta pública</span>
+              <h1 style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 48, lineHeight: 1.04, letterSpacing: '-0.01em' }}>
+                Como está o seu carro?
+              </h1>
+              <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: 'var(--muted)' }}>
+                Informe o número da ordem de serviço que você recebeu e o CPF ou CNPJ do titular.
+              </p>
             </div>
-            <div className="space-y-1.5">
-              <Label>CPF / CNPJ do titular</Label>
-              <Input
-                placeholder="111.444.777-35 ou 00.000.000/0001-00"
-                value={numDocumento}
-                onChange={(e) => setNumDocumento(e.target.value)}
-              />
+
+            <div className="anim-rise anim-d3" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 28, display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 560 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label htmlFor="os" style={{ fontSize: 14, fontWeight: 600 }}>Número da OS</label>
+                <FieldStyle id="os" value={osId} onChange={setOsId} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" mono />
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>Está no comprovante entregue na recepção.</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label htmlFor="doc" style={{ fontSize: 14, fontWeight: 600 }}>CPF ou CNPJ do titular</label>
+                <FieldStyle id="doc" value={numDocumento} onChange={setNumDocumento} placeholder="111.444.777-35 ou 00.000.000/0001-00" mono />
+              </div>
+              {error && <p style={{ margin: 0, fontSize: 14, color: 'var(--danger)' }}>{error}</p>}
+              <button
+                type="button"
+                onClick={handleSearch}
+                disabled={consultaMutation.isPending}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 48, padding: '0 18px', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 15, border: 0, fontFamily: 'inherit', cursor: consultaMutation.isPending ? 'not-allowed' : 'pointer', opacity: consultaMutation.isPending ? .7 : 1, transition: 'background .2s, transform .2s' }}
+                onMouseEnter={(e) => { if (!consultaMutation.isPending) { e.currentTarget.style.background = 'var(--accent-hover)'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
+              >
+                {consultaMutation.isPending ? 'Consultando…' : 'Consultar status'}
+                <Search size={18} aria-hidden="true" />
+              </button>
             </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            <Button className="w-full" onClick={handleSearch} disabled={consultaMutation.isPending}>
-              {consultaMutation.isPending ? 'Consultando...' : 'Consultar'}
-            </Button>
-          </CardContent>
-        </Card>
 
-        {/* Result */}
-        {result && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Resultado</CardTitle>
-                <Badge className={STATUS_COLOR[result.status]}>{STATUS_LABEL[result.status]}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Status timeline */}
-              <StatusBar current={result.status} />
+            {result && <ResultPanel result={result} />}
+          </section>
 
-              {/* Dados */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-slate-500 text-xs">Veículo</p>
-                  <p className="font-mono font-bold">{result.veiculo.placa}</p>
-                  <p className="text-slate-600">{result.veiculo.marca} {result.veiculo.modelo}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 text-xs">Valor Estimado</p>
-                  <p className="text-2xl font-bold text-slate-900">{formatCurrency(result.valorFinal)}</p>
-                </div>
-              </div>
-
-              {/* Histórico */}
-              {result.historicoStatus.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Histórico</p>
-                  <div className="space-y-2">
-                    {result.historicoStatus.map((h) => (
-                      <div key={h.id} className="flex items-center gap-3 text-sm">
-                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
-                        <span className="flex-1">
-                          {h.statusAnterior
-                            ? `${STATUS_LABEL[h.statusAnterior]} → ${STATUS_LABEL[h.statusNovo]}`
-                            : `Criado como: ${STATUS_LABEL[h.statusNovo]}`}
-                        </span>
-                        <span className="text-slate-400 text-xs">{formatDate(h.criadoEm)}</span>
-                      </div>
-                    ))}
+          <aside className="anim-rise anim-d4" aria-labelledby="etapas-titulo" style={{ flex: '1 1 320px', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <h2 id="etapas-titulo" style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 22 }}>O que cada etapa significa</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {etapas.map(({ num, label, desc, accent }) => (
+                <div key={num} style={{ display: 'grid', gridTemplateColumns: '32px 1fr', gap: 14, alignItems: 'start' }}>
+                  <span style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    border: `1px solid ${accent ? 'var(--accent)' : 'var(--line)'}`,
+                    background: accent ? 'var(--accent-soft-bg)' : 'var(--surface)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: "'IBM Plex Mono', monospace", fontSize: 12,
+                    color: accent ? 'var(--accent-hover)' : 'var(--muted)',
+                    flexShrink: 0,
+                  }}>
+                    {num}
+                  </span>
+                  <div>
+                    <strong style={{ fontSize: 15 }}>{label}</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: 14, color: 'var(--muted)', lineHeight: 1.5 }}>{desc}</p>
                   </div>
                 </div>
-              )}
+              ))}
+            </div>
+          </aside>
 
-              <p className="text-xs text-slate-400 text-center">
-                Tem alguma dúvida?{' '}
-                <a href="/login" className="text-blue-600 hover:underline">Acesse o sistema</a>
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        </div>
       </div>
     </div>
   )

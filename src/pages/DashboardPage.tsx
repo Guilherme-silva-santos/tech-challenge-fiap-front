@@ -1,116 +1,184 @@
-import { Car, CheckCircle, Clock, ClipboardList, Timer, Wrench } from 'lucide-react'
+import { ArrowRight, Plus } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/PageHeader'
+import { StatusPill } from '@/components/StatusPill'
 import { useOrdensServico, useTempoMedio } from '@/hooks/queries/use-ordens-servico'
-import { formatCurrency, formatDate, STATUS_COLOR, STATUS_LABEL } from '@/lib/utils'
+import { formatCurrency, formatDate, STATUS_LABEL, STATUS_ORDER } from '@/lib/utils'
 import type { Status } from '@/types'
 
-const STATUS_COUNTS: { status: Status; label: string; icon: React.ElementType; color: string }[] = [
-  { status: 'recebida', label: 'Recebidas', icon: ClipboardList, color: 'text-slate-600' },
-  { status: 'em_diagnostico', label: 'Em Diagnóstico', icon: Wrench, color: 'text-blue-600' },
-  { status: 'aguardando_aprovacao', label: 'Aguardando Aprovação', icon: Clock, color: 'text-yellow-600' },
-  { status: 'em_execucao', label: 'Em Execução', icon: Car, color: 'text-orange-600' },
-  { status: 'finalizada', label: 'Finalizadas', icon: CheckCircle, color: 'text-green-600' },
-  { status: 'entregue', label: 'Entregues', icon: CheckCircle, color: 'text-emerald-600' },
+const ESTEIRA: { status: Status; short: string; num: string }[] = [
+  { status: 'recebida',             short: 'Recebida',           num: '01' },
+  { status: 'em_diagnostico',       short: 'Em diagnóstico',     num: '02' },
+  { status: 'aguardando_aprovacao', short: 'Aguard. aprovação',  num: '03' },
+  { status: 'em_execucao',          short: 'Em execução',        num: '04' },
+  { status: 'finalizada',           short: 'Finalizada',         num: '05' },
+  { status: 'entregue',             short: 'Entregue',           num: '06' },
 ]
 
 export function DashboardPage() {
   const { data: ordens = [] } = useOrdensServico()
   const { data: tempoMedio } = useTempoMedio()
 
-  const countByStatus = (status: Status) => ordens.filter((o) => o.status === status).length
-  const recent = [...ordens].sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()).slice(0, 5)
+  const countByStatus = (s: Status) => ordens.filter((o) => o.status === s).length
+
+  const emAndamento = ordens.filter(
+    (o) => !['finalizada', 'entregue', 'rejeitada'].includes(o.status),
+  ).length
+
+  const aguardando = countByStatus('aguardando_aprovacao')
+  const entregues  = countByStatus('entregue')
+
+  const esteraCounts = ESTEIRA.map(({ status }) => countByStatus(status))
+  const maxCount = Math.max(...esteraCounts, 1)
+
+  const recent = [...ordens]
+    .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
+    .slice(0, 6)
+
+  const tempoLabel = tempoMedio
+    ? `${tempoMedio.tempoMedioHoras.toFixed(1)} h`
+    : '—'
+  const tempoSub = tempoMedio
+    ? `${tempoMedio.tempoMedioMinutos.toFixed(0)} min em média`
+    : 'Nenhuma OS finalizada ainda'
+
+  const kpis = [
+    { label: 'OS em andamento',       value: emAndamento,  sub: `de ${ordens.length} no total` },
+    { label: 'Tempo médio de execução', value: tempoLabel, sub: tempoSub },
+    { label: 'Aguardando aprovação',   value: aguardando,  sub: aguardando === 0 ? 'Nenhum orçamento pendente' : 'Orçamento aguardando ok' },
+    { label: 'Entregues',              value: entregues,   sub: 'Carros devolvidos ao cliente' },
+  ]
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-1">Visão geral da oficina</p>
-      </div>
+    <div className="page-body">
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-      {/* Tempo médio */}
-      {tempoMedio && (
-        <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50 p-4 flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
-            <Timer className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <p className="text-xs text-blue-600 font-medium uppercase tracking-wide">Tempo médio de execução</p>
-            <p className="text-xl font-bold text-blue-900">
-              {tempoMedio.tempoMedioHoras.toFixed(1)}h
-              <span className="text-sm font-normal text-blue-600 ml-2">
-                ({tempoMedio.tempoMedioMinutos.toFixed(0)} min)
-              </span>
-            </p>
-          </div>
+        <PageHeader
+          className="anim-rise anim-d1"
+          eyebrow="Operação"
+          title="Painel da oficina"
+          description="Visão geral das ordens de serviço."
+          action={
+            <Link
+              to="/ordens-servico"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44, padding: '0 18px', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 14, textDecoration: 'none', transition: 'background .2s, transform .2s' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-hover)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
+            >
+              <Plus size={18} aria-hidden="true" style={{ transition: 'transform .3s' }} />
+              Nova OS
+            </Link>
+          }
+        />
+
+        <div className="anim-rise anim-d2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+          {kpis.map(({ label, value, sub }) => (
+            <div
+              key={label}
+              style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 22, display: 'flex', flexDirection: 'column', gap: 6, transition: 'transform .25s, border-color .25s', cursor: 'default' }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = '#CFCAC0' }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = 'var(--line)' }}
+            >
+              <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500 }}>{label}</span>
+              <span style={{ fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 40, lineHeight: 1.1, letterSpacing: '-0.01em', color: 'var(--ink)' }}>{value}</span>
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>{sub}</span>
+            </div>
+          ))}
         </div>
-      )}
 
-      {/* Cards por status */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        {STATUS_COUNTS.map(({ status, label, icon: Icon, color }) => (
-          <Link key={status} to={`/ordens-servico?status=${status}`}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-slate-500">{label}</CardTitle>
-                  <Icon className={`h-4 w-4 ${color}`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-slate-900">{countByStatus(status)}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+        <section
+          className="anim-rise anim-d3"
+          aria-labelledby="esteira-titulo"
+          style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h2 id="esteira-titulo" style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 22 }}>Esteira de serviço</h2>
+              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse-accent 1.8s infinite', flexShrink: 0 }} />
+            </div>
+            <Link
+              to="/ordens-servico"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, fontSize: 14, fontWeight: 600, textDecoration: 'none', color: 'var(--accent)', transition: 'color .2s' }}
+            >
+              Ver todas as OS
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </div>
 
-      {/* Total geral */}
-      <div className="mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Total de OS</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-slate-900">{ordens.length}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recentes */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Ordens de Serviço Recentes</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {recent.length === 0 ? (
-            <p className="text-sm text-slate-500 px-6 pb-6">Nenhuma OS encontrada.</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {recent.map((os) => (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            {ESTEIRA.map(({ status, short, num }, i) => {
+              const count = esteraCounts[i]
+              const active = count > 0
+              const pct = `${Math.round((count / maxCount) * 100)}%`
+              return (
                 <Link
-                  key={os.osId}
-                  to={`/ordens-servico/${os.osId}`}
-                  className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+                  key={status}
+                  to={`/ordens-servico?status=${status}`}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 10, padding: 16,
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
+                    borderRadius: 10, textDecoration: 'none', color: 'var(--ink)',
+                    background: active ? 'var(--accent-soft-bg)' : 'transparent',
+                    minHeight: 44, transition: 'border-color .2s, transform .2s, background .2s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; if (!active) e.currentTarget.style.borderColor = 'var(--accent)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; if (!active) e.currentTarget.style.borderColor = 'var(--line)' }}
                 >
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">{os.cliente.nome}</p>
-                    <p className="text-xs text-slate-500">
-                      {os.veiculo.placa} · {os.veiculo.marca} {os.veiculo.modelo}
-                    </p>
-                    <p className="text-xs text-slate-400">{formatDate(os.criadoEm)}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge className={STATUS_COLOR[os.status]}>{STATUS_LABEL[os.status]}</Badge>
-                    <span className="text-sm font-semibold text-slate-700">{formatCurrency(os.valorFinal)}</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: active ? 'var(--accent-hover)' : 'var(--muted)' }}>
+                    {num} · {short}
+                  </span>
+                  <span style={{ fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 34, lineHeight: 1, color: 'var(--ink)' }}>
+                    {count}
+                  </span>
+                  <div style={{ height: 4, background: 'var(--line-soft)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: 'var(--accent)', width: pct, transformOrigin: 'left', animation: 'grow 1.1s .5s cubic-bezier(.2,.7,.2,1) both' }} />
                   </div>
                 </Link>
-              ))}
+              )
+            })}
+          </div>
+        </section>
+
+        {recent.length > 0 && (
+          <section
+            className="anim-rise anim-d4"
+            aria-labelledby="recentes-titulo"
+            style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}
+          >
+            <div style={{ padding: '20px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2 id="recentes-titulo" style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 22 }}>Ordens recentes</h2>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            {recent.map((os, i) => (
+              <Link
+                key={os.osId}
+                to={`/ordens-servico/${os.osId}`}
+                className="dashboard-row"
+                style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px 24px', padding: '14px 20px', textDecoration: 'none', color: 'var(--ink)', borderTop: '1px solid var(--line-soft)', transition: 'background .15s', animationDelay: `${0.47 + i * 0.06}s` }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-muted)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <span style={{ flex: '1 1 180px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <strong style={{ fontSize: 15 }}>{os.cliente.nome}</strong>
+                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>Mecânico: {os.mecanico.nome}</span>
+                </span>
+                <span style={{ flex: '1 1 160px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, padding: '2px 8px', border: '1.5px solid var(--ink)', borderRadius: 5, background: 'var(--surface)', letterSpacing: '.04em' }}>
+                    {os.veiculo.placa}
+                  </span>
+                  <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>{os.veiculo.marca} {os.veiculo.modelo}</span>
+                </span>
+                <StatusPill status={os.status} />
+                <span style={{ flex: '0 1 140px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: 'var(--muted)' }}>
+                  {formatDate(os.criadoEm)}
+                </span>
+                <strong style={{ flex: '0 0 90px', textAlign: 'right', fontSize: 15 }}>{formatCurrency(os.valorFinal)}</strong>
+                <ArrowRight size={18} aria-hidden="true" style={{ color: 'var(--muted)', transition: 'transform .25s, color .25s', flexShrink: 0 }} />
+              </Link>
+            ))}
+          </section>
+        )}
+
+      </div>
     </div>
   )
 }

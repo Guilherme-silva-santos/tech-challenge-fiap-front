@@ -18,7 +18,11 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config
-    if (error.response?.status !== 401 || original._retry) {
+    if (
+      error.response?.status !== 401 ||
+      original._retry ||
+      original.url?.includes('/auth/login')
+    ) {
       return Promise.reject(error)
     }
     original._retry = true
@@ -45,7 +49,7 @@ api.interceptors.response.use(
     } catch {
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
-      window.location.href = '/login'
+      window.dispatchEvent(new Event('auth:logout'))
       return Promise.reject(error)
     } finally {
       isRefreshing = false

@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { type CreateServicoDto } from '@/api/servicos'
-import { useCreateServico, useDeleteServico, useServicos, useUpdateServico } from '@/hooks/queries/use-servicos'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { IconButton } from '@/components/IconButton'
 import { PageHeader } from '@/components/PageHeader'
+import { SearchInput } from '@/components/SearchInput'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useCreateServico, useDeleteServico, useServicos, useUpdateServico } from '@/hooks/queries/use-servicos'
 import { toast } from '@/hooks/use-toast'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Servico } from '@/types'
@@ -50,22 +52,27 @@ function ServicoDialog({ open, onClose, editing }: { open: boolean; onClose: () 
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>{editing ? 'Editar Serviço' : 'Novo Serviço'}</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-1.5">
+      <DialogContent style={{ maxWidth: 480, borderRadius: 16, padding: 0, overflow: 'hidden', animation: 'pop .45s .08s cubic-bezier(.2,.8,.2,1) both' }}>
+        <div style={{ padding: '24px 28px 8px' }}>
+          <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)', display: 'block', marginBottom: 4 }}>Catálogo e estoque</span>
+          <DialogTitle style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 26 }}>
+            {editing ? 'Editar serviço' : 'Novo serviço'}
+          </DialogTitle>
+        </div>
+        <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Descrição</Label>
             <Input placeholder="Troca de óleo e filtro" {...register('descricao')} />
-            {errors.descricao && <p className="text-xs text-red-500">{errors.descricao.message}</p>}
+            {errors.descricao && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.descricao.message}</p>}
           </div>
-          <div className="space-y-1.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Valor (R$)</Label>
             <Input type="number" step="0.01" min={0} {...register('valor')} />
-            {errors.valor && <p className="text-xs text-red-500">{errors.valor.message}</p>}
+            {errors.valor && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.valor.message}</p>}
           </div>
-          <DialogFooter>
+          <DialogFooter style={{ paddingTop: 8, borderTop: '1px solid var(--line-soft)', marginTop: 4 }}>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Salvando...' : 'Salvar'}</Button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Salvando…' : 'Salvar'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -81,57 +88,98 @@ export function ServicosPage() {
   const { data: servicos = [], isLoading } = useServicos()
   const deleteMutation = useDeleteServico()
 
-  const filtered = servicos.filter((s) => s.descricao.toLowerCase().includes(search.toLowerCase()))
+  const filtered = servicos.filter((s) => !search || s.descricao.toLowerCase().includes(search.toLowerCase()))
 
   return (
-    <div className="p-8">
-      <PageHeader
-        title="Serviços"
-        description="Tabela de preços de serviços"
-        action={<Button onClick={() => { setEditing(null); setOpen(true) }}><Plus className="h-4 w-4" /> Novo Serviço</Button>}
-      />
-      <div className="mb-4">
-        <Input placeholder="Buscar serviço..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
-      </div>
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Descrição</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Valor</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Atualizado em</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">Carregando...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">Nenhum serviço encontrado.</td></tr>
-            ) : (
-              filtered.map((s) => (
-                <tr key={s.servicoId} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-900">{s.descricao}</td>
-                  <td className="px-4 py-3 font-semibold text-green-700">{formatCurrency(s.valor)}</td>
-                  <td className="px-4 py-3 text-slate-500">{formatDate(s.atualizadoEm)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button size="icon" variant="ghost" onClick={() => { setEditing(s); setOpen(true) }}><Pencil className="h-4 w-4" /></Button>
-                      <ConfirmDialog
-                        trigger={<Button size="icon" variant="ghost" className="text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button>}
-                        description={`Remover o serviço "${s.descricao}"?`}
-                        onConfirm={() => deleteMutation.mutate(s.servicoId, {
-                          onSuccess: () => toast({ title: 'Serviço removido', variant: 'success' }),
-                          onError: () => toast({ title: 'Erro ao remover', variant: 'destructive' }),
-                        })}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+    <div className="page-body">
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+        <PageHeader
+          className="anim-rise anim-d1"
+          eyebrow="Catálogo e estoque"
+          title="Serviços"
+          description="Tabela de preços dos serviços da oficina."
+          action={
+            <button
+              type="button"
+              onClick={() => { setEditing(null); setOpen(true) }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 18px', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 14, border: 0, fontFamily: 'inherit', cursor: 'pointer', transition: 'background .2s, transform .2s' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-hover)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
+            >
+              <Plus size={18} aria-hidden="true" />
+              Novo serviço
+            </button>
+          }
+        />
+
+        <div className="anim-rise anim-d2">
+          <SearchInput
+            label="Buscar serviço"
+            placeholder="Buscar serviço…"
+            value={search}
+            onChange={setSearch}
+            style={{ flex: '1 1 240px', maxWidth: 340 } as React.CSSProperties}
+          />
+        </div>
+
+        <section className="anim-rise anim-d3" aria-label="Lista de serviços" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+          {isLoading ? (
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>Carregando…</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
+              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>Nenhum serviço encontrado</strong>
+              {search ? `Nenhum resultado para "${search}".` : 'Cadastre o primeiro serviço.'}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 14 }}>
+                <thead>
+                  <tr>
+                    {['Descrição', 'Valor', 'Atualizado em', ''].map((h, i) => (
+                      <th key={i} scope={i < 3 ? 'col' : undefined} style={{ textAlign: i === 1 ? 'right' : 'left', fontWeight: 600, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-muted)' }}>
+                        {i === 3 ? <span className="sr-only">Ações</span> : h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s, i) => (
+                    <tr
+                      key={s.servicoId}
+                      className="anim-fade"
+                      style={{ borderBottom: '1px solid var(--line-soft)', transition: 'background .15s', animationDelay: `${0.22 + i * 0.08}s` }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-muted)'; const acts = e.currentTarget.querySelector('.row-acts') as HTMLElement; if (acts) acts.style.opacity = '1' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = ''; const acts = e.currentTarget.querySelector('.row-acts') as HTMLElement; if (acts) acts.style.opacity = '.75' }}
+                    >
+                      <td style={{ padding: '14px 20px' }}><strong>{s.descricao}</strong></td>
+                      <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                        <span style={{ fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 17, color: 'var(--accent)' }}>{formatCurrency(s.valor)}</span>
+                      </td>
+                      <td style={{ padding: '14px 20px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: 'var(--muted)' }}>{formatDate(s.atualizadoEm)}</td>
+                      <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                        <div className="row-acts" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, opacity: .75, transition: 'opacity .2s' }}>
+                          <IconButton aria-label={`Editar ${s.descricao}`} onClick={() => { setEditing(s); setOpen(true) }}>
+                            <Pencil size={18} aria-hidden="true" />
+                          </IconButton>
+                          <ConfirmDialog
+                            trigger={<IconButton variant="danger" aria-label={`Excluir ${s.descricao}`}><Trash2 size={18} aria-hidden="true" /></IconButton>}
+                            description={`Remover o serviço "${s.descricao}"?`}
+                            onConfirm={() => deleteMutation.mutate(s.servicoId, {
+                              onSuccess: () => toast({ title: 'Serviço removido', variant: 'success' }),
+                              onError: () => toast({ title: 'Erro ao remover', variant: 'destructive' }),
+                            })}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
       </div>
       <ServicoDialog open={open} onClose={() => setOpen(false)} editing={editing} />
     </div>

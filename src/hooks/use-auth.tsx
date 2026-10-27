@@ -24,6 +24,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false)
   }, [])
 
+  useEffect(() => {
+    const handler = () => setUser(null)
+    window.addEventListener('auth:logout', handler)
+    return () => window.removeEventListener('auth:logout', handler)
+  }, [])
+
   const login = useCallback(async (email: string, senha: string) => {
     const tokens = await authApi.login(email, senha)
     localStorage.setItem('accessToken', tokens.accessToken)

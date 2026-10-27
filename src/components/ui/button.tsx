@@ -4,22 +4,26 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap font-semibold transition-all duration-200 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default: 'bg-blue-600 text-white hover:bg-blue-700',
-        destructive: 'bg-red-500 text-white hover:bg-red-600',
-        outline: 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-900',
-        secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200',
-        ghost: 'hover:bg-slate-100 text-slate-700',
-        link: 'text-blue-600 underline-offset-4 hover:underline',
+        default:
+          'bg-[--accent] text-white hover:bg-[--accent-hover] hover:-translate-y-px focus-visible:shadow-[0_0_0_4px_rgba(194,65,12,.14)]',
+        outline:
+          'border border-[--line] bg-[--surface] text-[--ink] hover:bg-[--surface-muted] focus-visible:shadow-[0_0_0_4px_rgba(194,65,12,.14)]',
+        ghost:
+          'text-[--ink-2] hover:bg-[--surface-muted]',
+        destructive:
+          'bg-[--danger] text-white hover:opacity-90',
+        link:
+          'text-[--accent] underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-9 px-4 py-2',
-        sm: 'h-8 rounded-md px-3 text-xs',
-        lg: 'h-10 rounded-md px-8',
-        icon: 'h-9 w-9',
+        default: 'h-11 rounded-[--radius-btn] px-[18px] text-[14px]',
+        sm:      'h-9 rounded-[--radius-btn] px-3 text-[13px]',
+        lg:      'h-12 rounded-[--radius-btn] px-6 text-[15px]',
+        icon:    'h-11 w-11 rounded-[--radius-btn]',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },
