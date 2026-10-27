@@ -5,7 +5,9 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { type CreateUsuarioDto } from '@/api/usuarios'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { IconButton } from '@/components/IconButton'
 import { PageHeader } from '@/components/PageHeader'
+import { SearchInput } from '@/components/SearchInput'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -14,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCreateUsuario, useDeleteUsuario, useUpdateUsuario, useUsuarios } from '@/hooks/queries/use-usuarios'
 import { toast } from '@/hooks/use-toast'
 import { formatDate, ROLES_LABEL } from '@/lib/utils'
-import type { Usuario } from '@/types'
+import type { Roles, Usuario } from '@/types'
 
 const schema = z.object({
   nome: z.string().min(1, 'Nome obrigatório'),
@@ -24,31 +26,38 @@ const schema = z.object({
 })
 type FormValues = z.infer<typeof schema>
 
-function UsuarioDialog({
-  open,
-  onClose,
-  editing,
-}: {
-  open: boolean
-  onClose: () => void
-  editing: Usuario | null
-}) {
+function getInitials(name: string) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
+}
+
+function parseCurrentUserId(): number | null {
+  try {
+    const token = localStorage.getItem('accessToken')
+    if (!token) return null
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.sub ? Number(payload.sub) : null
+  } catch {
+    return null
+  }
+}
+
+const ROLE_STYLE: Record<Roles, { bg: string; color: string }> = {
+  admin:       { bg: 'var(--sidebar)', color: '#fff' },
+  funcionario: { bg: '#EAE8E2',        color: 'var(--ink-2)' },
+  mecanico:    { bg: '#FBE9DD',        color: '#9A3412' },
+}
+
+function UsuarioDialog({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: Usuario | null }) {
   const createMutation = useCreateUsuario()
   const updateMutation = useUpdateUsuario()
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { roles: 'funcionario' } })
+  const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { roles: 'funcionario' },
+  })
 
   useEffect(() => {
-    if (editing) {
-      reset({ nome: editing.nome, email: editing.email, roles: editing.roles, senha: '' })
-    } else {
-      reset({ nome: '', email: '', senha: '', roles: 'funcionario' })
-    }
+    if (editing) reset({ nome: editing.nome, email: editing.email, roles: editing.roles, senha: '' })
+    else reset({ nome: '', email: '', senha: '', roles: 'funcionario' })
   }, [editing, reset])
 
   const onSubmit = async (values: FormValues) => {
@@ -71,31 +80,32 @@ function UsuarioDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{editing ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-1.5">
+      <DialogContent style={{ maxWidth: 520, borderRadius: 16, padding: 0, overflow: 'hidden', animation: 'pop .45s .08s cubic-bezier(.2,.8,.2,1) both' }}>
+        <div style={{ padding: '24px 28px 8px' }}>
+          <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)', display: 'block', marginBottom: 4 }}>Cadastros</span>
+          <DialogTitle style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 26 }}>
+            {editing ? 'Editar usuário' : 'Novo usuário'}
+          </DialogTitle>
+        </div>
+        <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Nome</Label>
             <Input placeholder="João Silva" {...register('nome')} />
-            {errors.nome && <p className="text-xs text-red-500">{errors.nome.message}</p>}
+            {errors.nome && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.nome.message}</p>}
           </div>
-          <div className="space-y-1.5">
-            <Label>Email</Label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Label>E-mail</Label>
             <Input type="email" placeholder="joao@oficina.com" {...register('email')} />
-            {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
+            {errors.email && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.email.message}</p>}
           </div>
-          <div className="space-y-1.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>{editing ? 'Nova senha (opcional)' : 'Senha'}</Label>
             <Input type="password" placeholder="••••••••" {...register('senha')} />
           </div>
-          <div className="space-y-1.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Função</Label>
             <Select defaultValue={editing?.roles ?? 'funcionario'} onValueChange={(v) => setValue('roles', v as FormValues['roles'])}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="admin">Administrador</SelectItem>
                 <SelectItem value="funcionario">Funcionário</SelectItem>
@@ -103,9 +113,9 @@ function UsuarioDialog({
               </SelectContent>
             </Select>
           </div>
-          <DialogFooter>
+          <DialogFooter style={{ paddingTop: 8, borderTop: '1px solid var(--line-soft)', marginTop: 4 }}>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Salvando...' : 'Salvar'}</Button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Salvando…' : 'Salvar'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -120,78 +130,121 @@ export function UsuariosPage() {
 
   const { data: usuarios = [], isLoading } = useUsuarios()
   const deleteMutation = useDeleteUsuario()
+  const currentUserId = parseCurrentUserId()
 
   const filtered = usuarios.filter(
-    (u) => u.nome.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()),
+    (u) => !search || u.nome.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()),
   )
 
   return (
-    <div className="p-8">
-      <PageHeader
-        title="Usuários"
-        description="Gerencie os usuários do sistema"
-        action={
-          <Button onClick={() => { setEditing(null); setOpen(true) }}>
-            <Plus className="h-4 w-4" /> Novo Usuário
-          </Button>
-        }
-      />
+    <div className="page-body">
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      <div className="mb-4">
-        <Input placeholder="Buscar por nome ou email..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
+        <PageHeader
+          className="anim-rise anim-d1"
+          eyebrow="Cadastros"
+          title="Usuários"
+          description="Quem tem acesso ao sistema e com qual função."
+          action={
+            <button
+              type="button"
+              onClick={() => { setEditing(null); setOpen(true) }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 18px', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 14, border: 0, fontFamily: 'inherit', cursor: 'pointer', transition: 'background .2s, transform .2s' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-hover)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
+            >
+              <Plus size={18} aria-hidden="true" />
+              Novo usuário
+            </button>
+          }
+        />
+
+        <div className="anim-rise anim-d2">
+          <SearchInput
+            label="Buscar por nome ou e-mail"
+            placeholder="Buscar por nome ou e-mail"
+            value={search}
+            onChange={setSearch}
+            style={{ flex: '1 1 240px', maxWidth: 340 } as React.CSSProperties}
+          />
+        </div>
+
+        <section className="anim-rise anim-d3" aria-label="Lista de usuários" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+          {isLoading ? (
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>Carregando…</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
+              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>Nenhum usuário encontrado</strong>
+              {search ? `Nenhum resultado para "${search}".` : 'Cadastre o primeiro usuário.'}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse', fontSize: 14 }}>
+                <thead>
+                  <tr>
+                    {['Nome', 'E-mail', 'Função', 'Criado em', ''].map((h, i) => (
+                      <th key={i} scope={i < 4 ? 'col' : undefined} style={{ textAlign: 'left', fontWeight: 600, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-muted)' }}>
+                        {i === 4 ? <span className="sr-only">Ações</span> : h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((u, i) => {
+                    const isAdmin = u.roles === 'admin'
+                    const isMe = u.idUsuario === currentUserId
+                    const style = ROLE_STYLE[u.roles]
+                    return (
+                      <tr
+                        key={u.idUsuario}
+                        className="anim-fade"
+                        style={{ borderBottom: '1px solid var(--line-soft)', transition: 'background .15s', animationDelay: `${0.22 + i * 0.08}s` }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-muted)'; const acts = e.currentTarget.querySelector('.row-acts') as HTMLElement; if (acts) acts.style.opacity = '1' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = ''; const acts = e.currentTarget.querySelector('.row-acts') as HTMLElement; if (acts) acts.style.opacity = '.75' }}
+                      >
+                        <td style={{ padding: '12px 20px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                            <span style={{ width: 36, height: 36, borderRadius: '50%', background: isAdmin ? 'var(--sidebar)' : '#ECEAE4', color: isAdmin ? '#F28C28' : 'var(--ink-2)', fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              {getInitials(u.nome)}
+                            </span>
+                            <strong>{u.nome}</strong>
+                            {isMe && (
+                              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', border: '1px solid var(--field-border)', borderRadius: 999, padding: '1px 8px' }}>você</span>
+                            )}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 20px', color: 'var(--ink-2)' }}>{u.email}</td>
+                        <td style={{ padding: '12px 20px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: style.bg, color: style.color, whiteSpace: 'nowrap' }}>
+                            {ROLES_LABEL[u.roles]}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 20px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: 'var(--muted)' }}>{formatDate(u.criadoEm)}</td>
+                        <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                          <div className="row-acts" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, opacity: .75, transition: 'opacity .2s' }}>
+                            <IconButton aria-label={`Editar ${u.nome}`} onClick={() => { setEditing(u); setOpen(true) }}>
+                              <Pencil size={18} aria-hidden="true" />
+                            </IconButton>
+                            <ConfirmDialog
+                              trigger={<IconButton variant="danger" aria-label={`Excluir ${u.nome}`}><Trash2 size={18} aria-hidden="true" /></IconButton>}
+                              description={`Remover o usuário "${u.nome}"?`}
+                              onConfirm={() => deleteMutation.mutate(u.idUsuario, {
+                                onSuccess: () => toast({ title: 'Usuário removido', variant: 'success' }),
+                                onError: () => toast({ title: 'Erro ao remover', variant: 'destructive' }),
+                              })}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
       </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Nome</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Email</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Função</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-600">Criado em</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Carregando...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Nenhum usuário encontrado.</td></tr>
-            ) : (
-              filtered.map((u) => (
-                <tr key={u.idUsuario} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-900">{u.nome}</td>
-                  <td className="px-4 py-3 text-slate-600">{u.email}</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                      {ROLES_LABEL[u.roles]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{formatDate(u.criadoEm)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button size="icon" variant="ghost" onClick={() => { setEditing(u); setOpen(true) }}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <ConfirmDialog
-                        trigger={<Button size="icon" variant="ghost" className="text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button>}
-                        description={`Remover o usuário "${u.nome}"?`}
-                        onConfirm={() => {
-                          deleteMutation.mutate(u.idUsuario, {
-                            onSuccess: () => toast({ title: 'Usuário removido', variant: 'success' }),
-                            onError: () => toast({ title: 'Erro ao remover', variant: 'destructive' }),
-                          })
-                        }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
       <UsuarioDialog open={open} onClose={() => setOpen(false)} editing={editing} />
     </div>
   )

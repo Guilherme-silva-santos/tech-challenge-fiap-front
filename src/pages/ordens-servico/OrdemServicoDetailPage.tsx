@@ -1,56 +1,67 @@
-import {
-  ArrowLeft,
-  CheckCircle2,
-  ChevronRight,
-  Clock,
-  Mail,
-  Package,
-  Plus,
-  Trash2,
-  Wrench,
-  Zap,
-} from 'lucide-react'
+import { ArrowLeft, Check, Mail, Package, Plus, Trash2, Wrench, Zap, Clock } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useInsumos } from '@/hooks/queries/use-insumos'
-import { useAddInsumo, useAddPeca, useAddServico, useAprovarOrcamento, useOrdemServico, useRemoveInsumo, useRemovePeca, useRemoveServico, useSolicitarAprovacao, useUpdateStatusOS } from '@/hooks/queries/use-ordens-servico'
-import { usePecas } from '@/hooks/queries/use-pecas'
-import { useServicos } from '@/hooks/queries/use-servicos'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { Badge } from '@/components/ui/badge'
+import { IconButton } from '@/components/IconButton'
+import { StatusPill } from '@/components/StatusPill'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useInsumos } from '@/hooks/queries/use-insumos'
+import { useAddInsumo, useAddPeca, useAddServico, useAprovarOrcamento, useOrdemServico, useRemoveInsumo, useRemovePeca, useRemoveServico, useSolicitarAprovacao, useUpdateStatusOS } from '@/hooks/queries/use-ordens-servico'
+import { usePecas } from '@/hooks/queries/use-pecas'
+import { useServicos } from '@/hooks/queries/use-servicos'
 import { toast } from '@/hooks/use-toast'
-import { cn, formatCurrency, formatDate, STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from '@/lib/utils'
+import { formatCurrency, formatDate, STATUS_LABEL, STATUS_ORDER } from '@/lib/utils'
 import type { Status } from '@/types'
 
-function StatusTimeline({ current }: { current: Status }) {
+const PROXIMO_PASSO: Record<Status, { msg: string; btn?: string } | null> = {
+  recebida:             { msg: 'Inicie o diagnóstico do veículo.', btn: 'Iniciar diagnóstico' },
+  em_diagnostico:       { msg: 'Adicione serviços, peças e insumos do diagnóstico e envie o orçamento ao cliente.', btn: 'Solicitar aprovação do cliente' },
+  aguardando_aprovacao: { msg: 'Aguardando aprovação do cliente. Quando ele aceitar, registre aqui.', btn: 'Aprovar orçamento' },
+  em_execucao:          { msg: 'Execute os serviços aprovados e finalize quando concluir.', btn: 'Finalizar OS' },
+  finalizada:           { msg: 'Serviço concluído. Registre a entrega ao cliente.', btn: 'Marcar como entregue' },
+  entregue:             null,
+  rejeitada:            null,
+}
+
+function Stepper({ current }: { current: Status }) {
   const currentIdx = STATUS_ORDER.indexOf(current)
+  const steps = STATUS_ORDER.slice(0, 6)
   return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {STATUS_ORDER.map((s, i) => {
-        const done = i <= currentIdx
-        const active = s === current
-        return (
-          <div key={s} className="flex items-center gap-1">
-            <div className={cn(
-              'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all',
-              active ? 'bg-blue-600 text-white shadow-md' : done ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400',
-            )}>
-              {done && !active && <CheckCircle2 className="h-3 w-3" />}
-              {STATUS_LABEL[s]}
-            </div>
-            {i < STATUS_ORDER.length - 1 && (
-              <ChevronRight className={cn('h-3 w-3', i < currentIdx ? 'text-green-400' : 'text-slate-300')} />
-            )}
-          </div>
-        )
-      })}
+    <div style={{ overflowX: 'auto', padding: '6px 4px 2px' }}>
+      <ol style={{ display: 'grid', gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`, gap: 0, listStyle: 'none', margin: 0, padding: 0, minWidth: 640 }}>
+        {steps.map((s, i) => {
+          const done = i < currentIdx
+          const cur  = i === currentIdx
+          const isLast = i === steps.length - 1
+          return (
+            <li key={s} style={{ display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
+              {!isLast && (
+                <span style={{ position: 'absolute', top: 14, left: 30, right: 0, height: 2, background: 'var(--line)' }}>
+                  {done && <i style={{ display: 'block', height: '100%', background: 'var(--accent)', transformOrigin: 'left', animation: `grow .8s ${0.3 + i * 0.1}s cubic-bezier(.2,.7,.2,1) both` }} />}
+                </span>
+              )}
+              <span style={{
+                width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, position: 'relative', zIndex: 1,
+                border: `1.5px solid ${done ? 'var(--sidebar)' : cur ? 'var(--accent)' : 'var(--field-border)'}`,
+                background: done ? 'var(--sidebar)' : cur ? 'var(--accent)' : 'var(--surface)',
+                color: done ? 'var(--accent-bright)' : cur ? '#fff' : 'var(--muted)',
+                animation: cur ? 'ring 1.8s infinite' : undefined,
+              }}>
+                {done ? <Check size={14} strokeWidth={3} aria-hidden="true" /> : String(i + 1).padStart(2, '0')}
+              </span>
+              <span style={{ fontSize: 13, color: (done || cur) ? 'var(--ink)' : 'var(--muted)', fontWeight: cur ? 600 : undefined, paddingRight: 12 }}>
+                {STATUS_LABEL[s]}
+              </span>
+            </li>
+          )
+        })}
+      </ol>
     </div>
   )
 }
@@ -60,38 +71,27 @@ function AddServicoDialog({ osId, onClose }: { osId: string; onClose: () => void
   const [quantidade, setQuantidade] = useState(1)
   const { data: servicos = [] } = useServicos()
   const mutation = useAddServico(osId)
-
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader><DialogTitle>Adicionar Serviço</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Serviço</Label>
             <Select onValueChange={setServicoId}>
-              <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent>
-                {servicos.map((s) => (
-                  <SelectItem key={s.servicoId} value={String(s.servicoId)}>{s.descricao} — {formatCurrency(s.valor)}</SelectItem>
-                ))}
-              </SelectContent>
+              <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
+              <SelectContent>{servicos.map((s) => <SelectItem key={s.servicoId} value={String(s.servicoId)}>{s.descricao} — {formatCurrency(s.valor)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Quantidade</Label>
             <Input type="number" min={1} value={quantidade} onChange={(e) => setQuantidade(Number(e.target.value))} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={!servicoId || mutation.isPending}
-            onClick={() => mutation.mutate({ servicoId: Number(servicoId), quantidade }, {
-              onSuccess: () => { toast({ title: 'Serviço adicionado', variant: 'success' }); onClose() },
-              onError: () => toast({ title: 'Erro ao adicionar serviço', variant: 'destructive' }),
-            })}
-          >
-            {mutation.isPending ? 'Adicionando...' : 'Adicionar'}
+          <Button disabled={!servicoId || mutation.isPending} onClick={() => mutation.mutate({ servicoId: Number(servicoId), quantidade }, { onSuccess: () => { toast({ title: 'Serviço adicionado', variant: 'success' }); onClose() }, onError: () => toast({ title: 'Erro ao adicionar serviço', variant: 'destructive' }) })}>
+            {mutation.isPending ? 'Adicionando…' : 'Adicionar'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -104,38 +104,27 @@ function AddPecaDialog({ osId, onClose }: { osId: string; onClose: () => void })
   const [qtd, setQtd] = useState(1)
   const { data: pecas = [] } = usePecas()
   const mutation = useAddPeca(osId)
-
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader><DialogTitle>Adicionar Peça</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Peça</Label>
             <Select onValueChange={setPecaId}>
-              <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent>
-                {pecas.map((p) => (
-                  <SelectItem key={p.pecaId} value={String(p.pecaId)}>{p.nome} — {formatCurrency(p.valorUn)} (estoque: {p.qtdEstoque})</SelectItem>
-                ))}
-              </SelectContent>
+              <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
+              <SelectContent>{pecas.map((p) => <SelectItem key={p.pecaId} value={String(p.pecaId)}>{p.nome} — {formatCurrency(p.valorUn)} (estoque: {p.qtdEstoque})</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Quantidade</Label>
             <Input type="number" min={1} value={qtd} onChange={(e) => setQtd(Number(e.target.value))} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={!pecaId || mutation.isPending}
-            onClick={() => mutation.mutate({ pecaId: Number(pecaId), qtd }, {
-              onSuccess: () => { toast({ title: 'Peça adicionada', variant: 'success' }); onClose() },
-              onError: () => toast({ title: 'Erro ao adicionar peça', variant: 'destructive' }),
-            })}
-          >
-            {mutation.isPending ? 'Adicionando...' : 'Adicionar'}
+          <Button disabled={!pecaId || mutation.isPending} onClick={() => mutation.mutate({ pecaId: Number(pecaId), qtd }, { onSuccess: () => { toast({ title: 'Peça adicionada', variant: 'success' }); onClose() }, onError: () => toast({ title: 'Erro ao adicionar peça', variant: 'destructive' }) })}>
+            {mutation.isPending ? 'Adicionando…' : 'Adicionar'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -148,38 +137,27 @@ function AddInsumoDialog({ osId, onClose }: { osId: string; onClose: () => void 
   const [qtdConsumida, setQtdConsumida] = useState(1)
   const { data: insumos = [] } = useInsumos()
   const mutation = useAddInsumo(osId)
-
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader><DialogTitle>Adicionar Insumo</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Insumo</Label>
             <Select onValueChange={setInsumoId}>
-              <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent>
-                {insumos.map((i) => (
-                  <SelectItem key={i.insumoId} value={String(i.insumoId)}>{i.nome} — {formatCurrency(i.valorUn)} (estoque: {i.qtdEstoque})</SelectItem>
-                ))}
-              </SelectContent>
+              <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
+              <SelectContent>{insumos.map((i) => <SelectItem key={i.insumoId} value={String(i.insumoId)}>{i.nome} — {formatCurrency(i.valorUn)} (estoque: {i.qtdEstoque})</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>Quantidade consumida</Label>
             <Input type="number" min={1} value={qtdConsumida} onChange={(e) => setQtdConsumida(Number(e.target.value))} />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={!insumoId || mutation.isPending}
-            onClick={() => mutation.mutate({ insumoId: Number(insumoId), qtdConsumida }, {
-              onSuccess: () => { toast({ title: 'Insumo adicionado', variant: 'success' }); onClose() },
-              onError: () => toast({ title: 'Erro ao adicionar insumo', variant: 'destructive' }),
-            })}
-          >
-            {mutation.isPending ? 'Adicionando...' : 'Adicionar'}
+          <Button disabled={!insumoId || mutation.isPending} onClick={() => mutation.mutate({ insumoId: Number(insumoId), qtdConsumida }, { onSuccess: () => { toast({ title: 'Insumo adicionado', variant: 'success' }); onClose() }, onError: () => toast({ title: 'Erro ao adicionar insumo', variant: 'destructive' }) })}>
+            {mutation.isPending ? 'Adicionando…' : 'Adicionar'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -189,6 +167,44 @@ function AddInsumoDialog({ osId, onClose }: { osId: string; onClose: () => void 
 
 type AddDialog = 'servico' | 'peca' | 'insumo' | null
 
+function ItemTable({ rows, onRemove }: { rows: { id: number; nome: string; qty: number; valor: string }[]; onRemove: (id: number) => void }) {
+  if (rows.length === 0) return null
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <thead>
+        <tr>
+          {['Item', 'Qtd', 'Valor', ''].map((h, i) => (
+            <th key={i} style={{ textAlign: i === 2 ? 'right' : 'left', fontWeight: 600, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', padding: '12px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-muted)' }}>
+              {h || <span className="sr-only">Remover</span>}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.id} style={{ borderBottom: '1px solid var(--line-soft)', transition: 'background .15s' }} onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-muted)' }} onMouseLeave={(e) => { e.currentTarget.style.background = '' }}>
+            <td style={{ padding: '12px 20px' }}>{r.nome}</td>
+            <td style={{ padding: '12px 20px' }}>{r.qty}</td>
+            <td style={{ padding: '12px 20px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(r.valor)}</td>
+            <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+              <ConfirmDialog trigger={<IconButton variant="danger" aria-label={`Remover ${r.nome}`}><Trash2 size={18} aria-hidden="true" /></IconButton>} description={`Remover "${r.nome}" da OS?`} onConfirm={() => onRemove(r.id)} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function EmptyState({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div style={{ border: '1.5px dashed var(--field-border)', borderRadius: 10, padding: '36px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center', margin: '0 20px 20px' }}>
+      <strong style={{ fontSize: 15 }}>{title}</strong>
+      <span style={{ fontSize: 14, color: 'var(--muted)', maxWidth: 380 }}>{desc}</span>
+    </div>
+  )
+}
+
 export function OrdemServicoDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [addDialog, setAddDialog] = useState<AddDialog>(null)
@@ -196,286 +212,202 @@ export function OrdemServicoDetailPage() {
   const { data: os, isLoading } = useOrdemServico(id!)
   const statusMutation = useUpdateStatusOS(id!)
   const aprovarMutation = useAprovarOrcamento(id!)
-  const solicitarAprovacaoMutation = useSolicitarAprovacao(id!)
+  const solicitarMutation = useSolicitarAprovacao(id!)
   const removeServicoMutation = useRemoveServico(id!)
   const removePecaMutation = useRemovePeca(id!)
   const removeInsumoMutation = useRemoveInsumo(id!)
 
-  if (isLoading) return <div className="p-8 text-slate-500">Carregando...</div>
-  if (!os) return <div className="p-8 text-slate-500">OS não encontrada.</div>
+  if (isLoading) return <div style={{ padding: '48px 40px', color: 'var(--muted)' }}>Carregando…</div>
+  if (!os) return <div style={{ padding: '48px 40px', color: 'var(--muted)' }}>OS não encontrada.</div>
 
+  const shortId = os.osId.slice(0, 8).toUpperCase()
   const currentIdx = STATUS_ORDER.indexOf(os.status)
   const nextStatus = STATUS_ORDER[currentIdx + 1] as Status | undefined
-  const canAprovar = os.status === 'aguardando_aprovacao'
-  const canSolicitarAprovacao = os.status === 'em_diagnostico'
+  const proximo = PROXIMO_PASSO[os.status]
+
+  const totalServicos = os.servicosRealizados.reduce((s, r) => s + Number(r.valor) * r.quantidade, 0)
+  const totalPecas    = os.pecasUtilizadas.reduce((s, p) => s + Number(p.valor) * p.qtd, 0)
+  const totalInsumos  = os.insumosConsumidos.reduce((s, i) => s + Number(i.valor) * i.qtdConsumida, 0)
+
+  function handleProximoPasso() {
+    if (os!.status === 'em_diagnostico') {
+      solicitarMutation.mutate(undefined, {
+        onSuccess: () => toast({ title: 'E-mail enviado', description: 'Status alterado para Aguardando Aprovação.', variant: 'success' }),
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          toast({ title: 'Erro ao solicitar aprovação', description: msg ?? 'Verifique se o cliente possui e-mail cadastrado.', variant: 'destructive' })
+        },
+      })
+    } else if (os!.status === 'aguardando_aprovacao') {
+      aprovarMutation.mutate(undefined, {
+        onSuccess: () => toast({ title: 'Orçamento aprovado', variant: 'success' }),
+        onError: () => toast({ title: 'Erro ao aprovar orçamento', variant: 'destructive' }),
+      })
+    } else if (nextStatus) {
+      statusMutation.mutate(nextStatus, {
+        onSuccess: () => toast({ title: 'Status atualizado', variant: 'success' }),
+        onError: () => toast({ title: 'Erro ao atualizar status', variant: 'destructive' }),
+      })
+    }
+  }
+
+  const isPending = statusMutation.isPending || aprovarMutation.isPending || solicitarMutation.isPending
 
   return (
-    <div className="p-8 max-w-5xl">
-      {/* Voltar */}
-      <Link to="/ordens-servico" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900 mb-6">
-        <ArrowLeft className="h-4 w-4" /> Voltar às OS
-      </Link>
+    <div className="page-body">
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold text-slate-900">Ordem de Serviço</h1>
-            <Badge className={STATUS_COLOR[os.status]}>{STATUS_LABEL[os.status]}</Badge>
+        <Link
+          to="/ordens-servico"
+          className="anim-rise anim-d1"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, textDecoration: 'none', color: 'var(--ink-2)', fontWeight: 500, fontSize: 14, transition: 'color .2s', width: 'fit-content' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--ink-2)')}
+        >
+          <ArrowLeft size={18} aria-hidden="true" /> Ordens de serviço
+        </Link>
+
+        <header className="anim-rise anim-d1" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+              <h1 style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 38, letterSpacing: '-0.01em' }}>
+                OS <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 500, fontSize: 30 }}>#{shortId}</span>
+              </h1>
+              <StatusPill status={os.status} />
+            </div>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: 'var(--muted)' }}>
+              {os.osId} · aberta em {formatDate(os.criadoEm)}
+            </span>
           </div>
-          <p className="text-xs text-slate-400 font-mono">{os.osId}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-slate-500">Valor Final</p>
-          <p className="text-3xl font-bold text-slate-900">{formatCurrency(os.valorFinal)}</p>
-        </div>
-      </div>
-
-      {/* Timeline de status */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <StatusTimeline current={os.status} />
-          <div className="flex gap-2 mt-4">
-            {canAprovar && (
-              <Button
-                onClick={() => aprovarMutation.mutate(undefined, {
-                  onSuccess: () => toast({ title: 'Orçamento aprovado', variant: 'success' }),
-                  onError: () => toast({ title: 'Erro ao aprovar orçamento', variant: 'destructive' }),
-                })}
-                disabled={aprovarMutation.isPending}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                <CheckCircle2 className="h-4 w-4" /> Aprovar Orçamento
-              </Button>
-            )}
-            {canSolicitarAprovacao && (
-              <Button
-                onClick={() => solicitarAprovacaoMutation.mutate(undefined, {
-                  onSuccess: () => toast({ title: 'E-mail enviado ao cliente', description: 'Status alterado para Aguardando Aprovação.', variant: 'success' }),
-                  onError: (err: unknown) => {
-                    const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-                    toast({ title: 'Erro ao solicitar aprovação', description: msg ?? 'Verifique se o cliente possui e-mail cadastrado.', variant: 'destructive' })
-                  },
-                })}
-                disabled={solicitarAprovacaoMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Mail className="h-4 w-4" /> {solicitarAprovacaoMutation.isPending ? 'Enviando...' : 'Solicitar Aprovação do Cliente'}
-              </Button>
-            )}
-            {nextStatus && !canAprovar && !canSolicitarAprovacao && (
-              <Button
-                variant="outline"
-                onClick={() => statusMutation.mutate(nextStatus, {
-                  onSuccess: () => toast({ title: 'Status atualizado', variant: 'success' }),
-                  onError: () => toast({ title: 'Erro ao atualizar status', variant: 'destructive' }),
-                })}
-                disabled={statusMutation.isPending}
-              >
-                Avançar para: {STATUS_LABEL[nextStatus]}
-              </Button>
-            )}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+            <span style={{ fontSize: 12, letterSpacing: '.08em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--muted)' }}>Valor final</span>
+            <strong style={{ fontFamily: 'Barlow, sans-serif', fontSize: 38, lineHeight: 1 }}>{formatCurrency(os.valorFinal)}</strong>
           </div>
-        </CardContent>
-      </Card>
+        </header>
 
-      {/* Informações */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Cliente</CardTitle></CardHeader>
-          <CardContent>
-            <p className="font-semibold text-slate-900">{os.cliente.nome}</p>
-            <p className="text-xs text-slate-500 font-mono">{os.cliente.numDocumento}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Veículo</CardTitle></CardHeader>
-          <CardContent>
-            <p className="font-mono font-bold text-slate-900">{os.veiculo.placa}</p>
-            <p className="text-xs text-slate-500">{os.veiculo.marca} {os.veiculo.modelo}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Mecânico</CardTitle></CardHeader>
-          <CardContent>
-            <p className="font-semibold text-slate-900">{os.mecanico.nome}</p>
-            <p className="text-xs text-slate-500">Criado em {formatDate(os.criadoEm)}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs de itens */}
-      <Tabs defaultValue="servicos">
-        <TabsList>
-          <TabsTrigger value="servicos"><Wrench className="h-3.5 w-3.5 mr-1" />Serviços ({os.servicosRealizados.length})</TabsTrigger>
-          <TabsTrigger value="pecas"><Package className="h-3.5 w-3.5 mr-1" />Peças ({os.pecasUtilizadas.length})</TabsTrigger>
-          <TabsTrigger value="insumos"><Zap className="h-3.5 w-3.5 mr-1" />Insumos ({os.insumosConsumidos.length})</TabsTrigger>
-          <TabsTrigger value="historico"><Clock className="h-3.5 w-3.5 mr-1" />Histórico</TabsTrigger>
-        </TabsList>
-
-        {/* Serviços */}
-        <TabsContent value="servicos">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-base">Serviços realizados</CardTitle>
-              <Button size="sm" onClick={() => setAddDialog('servico')}><Plus className="h-4 w-4" /> Adicionar</Button>
-            </CardHeader>
-            <CardContent className="p-0">
-              {os.servicosRealizados.length === 0 ? (
-                <p className="text-sm text-slate-400 px-6 pb-4">Nenhum serviço adicionado.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="text-left px-6 py-2 font-medium text-slate-500">Descrição</th>
-                      <th className="text-left px-4 py-2 font-medium text-slate-500">Qtd</th>
-                      <th className="text-left px-4 py-2 font-medium text-slate-500">Valor</th>
-                      <th className="px-4 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {os.servicosRealizados.map((s) => (
-                      <tr key={s.servicoId} className="hover:bg-slate-50">
-                        <td className="px-6 py-3">{s.descricao}</td>
-                        <td className="px-4 py-3">{s.quantidade}</td>
-                        <td className="px-4 py-3 font-semibold">{formatCurrency(s.valor)}</td>
-                        <td className="px-4 py-3">
-                          <ConfirmDialog
-                            trigger={<Button size="icon" variant="ghost" className="text-red-500"><Trash2 className="h-4 w-4" /></Button>}
-                            description={`Remover "${s.descricao}" da OS?`}
-                            onConfirm={() => removeServicoMutation.mutate(s.servicoId)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <section className="anim-rise anim-d2" aria-label="Andamento da OS" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <Stepper current={os.status} />
+          {proximo && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '16px 18px', borderRadius: 10, background: 'var(--accent-soft-bg)', border: '1px solid var(--accent-soft-border)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <strong style={{ fontSize: 15 }}>Próximo passo</strong>
+                <span style={{ fontSize: 14, color: 'var(--muted)' }}>{proximo.msg}</span>
+              </div>
+              {proximo.btn && (
+                <button
+                  type="button"
+                  onClick={handleProximoPasso}
+                  disabled={isPending}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 18px', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 14, border: 0, fontFamily: 'inherit', cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? .7 : 1, transition: 'background .2s, transform .2s', whiteSpace: 'nowrap' }}
+                  onMouseEnter={(e) => { if (!isPending) { e.currentTarget.style.background = 'var(--accent-hover)'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
+                >
+                  {os.status === 'em_diagnostico' && <Mail size={18} aria-hidden="true" />}
+                  {isPending ? 'Aguarde…' : proximo.btn}
+                </button>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          )}
+        </section>
 
-        {/* Peças */}
-        <TabsContent value="pecas">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-base">Peças utilizadas</CardTitle>
-              <Button size="sm" onClick={() => setAddDialog('peca')}><Plus className="h-4 w-4" /> Adicionar</Button>
-            </CardHeader>
-            <CardContent className="p-0">
-              {os.pecasUtilizadas.length === 0 ? (
-                <p className="text-sm text-slate-400 px-6 pb-4">Nenhuma peça adicionada.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="text-left px-6 py-2 font-medium text-slate-500">Peça</th>
-                      <th className="text-left px-4 py-2 font-medium text-slate-500">Qtd</th>
-                      <th className="text-left px-4 py-2 font-medium text-slate-500">Valor</th>
-                      <th className="px-4 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {os.pecasUtilizadas.map((p) => (
-                      <tr key={p.pecaId} className="hover:bg-slate-50">
-                        <td className="px-6 py-3">{p.nome}</td>
-                        <td className="px-4 py-3">{p.qtd}</td>
-                        <td className="px-4 py-3 font-semibold">{formatCurrency(p.valor)}</td>
-                        <td className="px-4 py-3">
-                          <ConfirmDialog
-                            trigger={<Button size="icon" variant="ghost" className="text-red-500"><Trash2 className="h-4 w-4" /></Button>}
-                            description={`Remover "${p.nome}" da OS?`}
-                            onConfirm={() => removePecaMutation.mutate(p.pecaId)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <div className="anim-rise anim-d3" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
 
-        {/* Insumos */}
-        <TabsContent value="insumos">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-base">Insumos consumidos</CardTitle>
-              <Button size="sm" onClick={() => setAddDialog('insumo')}><Plus className="h-4 w-4" /> Adicionar</Button>
-            </CardHeader>
-            <CardContent className="p-0">
-              {os.insumosConsumidos.length === 0 ? (
-                <p className="text-sm text-slate-400 px-6 pb-4">Nenhum insumo adicionado.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="text-left px-6 py-2 font-medium text-slate-500">Insumo</th>
-                      <th className="text-left px-4 py-2 font-medium text-slate-500">Qtd</th>
-                      <th className="text-left px-4 py-2 font-medium text-slate-500">Valor</th>
-                      <th className="px-4 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {os.insumosConsumidos.map((i) => (
-                      <tr key={i.insumoId} className="hover:bg-slate-50">
-                        <td className="px-6 py-3">{i.nome}</td>
-                        <td className="px-4 py-3">{i.qtdConsumida}</td>
-                        <td className="px-4 py-3 font-semibold">{formatCurrency(i.valor)}</td>
-                        <td className="px-4 py-3">
-                          <ConfirmDialog
-                            trigger={<Button size="icon" variant="ghost" className="text-red-500"><Trash2 className="h-4 w-4" /></Button>}
-                            description={`Remover "${i.nome}" da OS?`}
-                            onConfirm={() => removeInsumoMutation.mutate(i.insumoId)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <section style={{ flex: '999 1 520px', minWidth: 0, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+            <Tabs defaultValue="servicos">
+              <TabsList>
+                <TabsTrigger value="servicos"><Wrench size={14} aria-hidden="true" style={{ marginRight: 6 }} />Serviços ({os.servicosRealizados.length})</TabsTrigger>
+                <TabsTrigger value="pecas"><Package size={14} aria-hidden="true" style={{ marginRight: 6 }} />Peças ({os.pecasUtilizadas.length})</TabsTrigger>
+                <TabsTrigger value="insumos"><Zap size={14} aria-hidden="true" style={{ marginRight: 6 }} />Insumos ({os.insumosConsumidos.length})</TabsTrigger>
+                <TabsTrigger value="historico"><Clock size={14} aria-hidden="true" style={{ marginRight: 6 }} />Histórico</TabsTrigger>
+              </TabsList>
 
-        {/* Histórico */}
-        <TabsContent value="historico">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Histórico de Status</CardTitle></CardHeader>
-            <CardContent>
-              {(os.historicoStatus ?? []).length === 0 ? (
-                <p className="text-sm text-slate-400">Sem histórico.</p>
-              ) : (
-                <div className="space-y-3">
-                  {(os.historicoStatus ?? []).map((h) => (
-                    <div key={h.id} className="flex items-center gap-3 text-sm">
-                      <div className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
-                      <div className="flex-1">
-                        {h.statusAnterior ? (
-                          <span>
-                            <Badge className={STATUS_COLOR[h.statusAnterior]}>{STATUS_LABEL[h.statusAnterior]}</Badge>
-                            {' '}<span className="text-slate-400">→</span>{' '}
-                            <Badge className={STATUS_COLOR[h.statusNovo]}>{STATUS_LABEL[h.statusNovo]}</Badge>
-                          </span>
-                        ) : (
-                          <span>OS criada com status <Badge className={STATUS_COLOR[h.statusNovo]}>{STATUS_LABEL[h.statusNovo]}</Badge></span>
-                        )}
-                      </div>
-                      <span className="text-slate-400 text-xs">{formatDate(h.criadoEm)}</span>
-                    </div>
-                  ))}
+              <TabsContent value="servicos">
+                <div style={{ padding: '20px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h2 style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 20 }}>Serviços realizados</h2>
+                  <Button size="sm" onClick={() => setAddDialog('servico')}><Plus size={16} />Adicionar</Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                {os.servicosRealizados.length === 0
+                  ? <EmptyState title="Nenhum serviço adicionado" desc="Escolha na tabela de serviços o que será feito neste carro." />
+                  : <ItemTable rows={os.servicosRealizados.map(s => ({ id: s.servicoId, nome: s.descricao, qty: s.quantidade, valor: s.valor }))} onRemove={(id) => removeServicoMutation.mutate(id)} />
+                }
+              </TabsContent>
 
-      {/* Add dialogs */}
+              <TabsContent value="pecas">
+                <div style={{ padding: '20px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h2 style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 20 }}>Peças utilizadas</h2>
+                  <Button size="sm" onClick={() => setAddDialog('peca')}><Plus size={16} />Adicionar</Button>
+                </div>
+                {os.pecasUtilizadas.length === 0
+                  ? <EmptyState title="Nenhuma peça adicionada" desc="Selecione no estoque as peças usadas no reparo." />
+                  : <ItemTable rows={os.pecasUtilizadas.map(p => ({ id: p.pecaId, nome: p.nome, qty: p.qtd, valor: p.valor }))} onRemove={(id) => removePecaMutation.mutate(id)} />
+                }
+              </TabsContent>
+
+              <TabsContent value="insumos">
+                <div style={{ padding: '20px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h2 style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 20 }}>Insumos consumidos</h2>
+                  <Button size="sm" onClick={() => setAddDialog('insumo')}><Plus size={16} />Adicionar</Button>
+                </div>
+                {os.insumosConsumidos.length === 0
+                  ? <EmptyState title="Nenhum insumo adicionado" desc="Óleos, fluidos e materiais de consumo usados no serviço." />
+                  : <ItemTable rows={os.insumosConsumidos.map(i => ({ id: i.insumoId, nome: i.nome, qty: i.qtdConsumida, valor: i.valor }))} onRemove={(id) => removeInsumoMutation.mutate(id)} />
+                }
+              </TabsContent>
+
+              <TabsContent value="historico">
+                <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  {(os.historicoStatus ?? []).length === 0 ? (
+                    <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Sem histórico.</p>
+                  ) : (
+                    (os.historicoStatus ?? []).map((h) => (
+                      <div key={h.id} style={{ display: 'grid', gridTemplateColumns: '12px 1fr', gap: 14 }}>
+                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--sidebar)', marginTop: 4, flexShrink: 0 }} />
+                        <div>
+                          <strong style={{ fontSize: 14 }}>
+                            {h.statusAnterior
+                              ? `${STATUS_LABEL[h.statusAnterior]} → ${STATUS_LABEL[h.statusNovo]}`
+                              : `OS criada · ${STATUS_LABEL[h.statusNovo]}`}
+                          </strong>
+                          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{formatDate(h.criadoEm)}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </section>
+
+          <aside aria-label="Dados da OS" style={{ flex: '1 1 300px', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+            {[
+              { key: 'Cliente', content: <><strong style={{ fontSize: 16 }}>{os.cliente.nome}</strong><span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: 'var(--muted)' }}>{os.cliente.numDocumento}</span></> },
+              { key: 'Veículo', content: <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, padding: '3px 8px', border: '1.5px solid var(--ink)', borderRadius: 5 }}>{os.veiculo.placa}</span><span style={{ fontSize: 14 }}>{os.veiculo.marca} {os.veiculo.modelo}</span></span> },
+              { key: 'Mecânico', content: <strong style={{ fontSize: 16 }}>{os.mecanico.nome}</strong> },
+            ].map(({ key, content }, i) => (
+              <div key={key} style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 6, borderTop: i === 0 ? 0 : '1px solid var(--line-soft)' }}>
+                <span style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--muted)' }}>{key}</span>
+                {content}
+              </div>
+            ))}
+            <div style={{ padding: '18px 20px', borderTop: '1px solid var(--line-soft)', background: 'var(--surface-muted)' }}>
+              <span style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 10 }}>Resumo</span>
+              {[['Serviços', totalServicos], ['Peças', totalPecas], ['Insumos', totalInsumos]].map(([label, val]) => (
+                <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--ink-2)', padding: '5px 0' }}>
+                  <span>{label as string}</span><span>{formatCurrency(val as number)}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, color: 'var(--ink)', padding: '10px 0 5px', borderTop: '1px solid var(--line)', marginTop: 4 }}>
+                <span>Total</span><span>{formatCurrency(totalServicos + totalPecas + totalInsumos)}</span>
+              </div>
+            </div>
+          </aside>
+
+        </div>
+      </div>
+
       {addDialog === 'servico' && <AddServicoDialog osId={os.osId} onClose={() => setAddDialog(null)} />}
-      {addDialog === 'peca' && <AddPecaDialog osId={os.osId} onClose={() => setAddDialog(null)} />}
-      {addDialog === 'insumo' && <AddInsumoDialog osId={os.osId} onClose={() => setAddDialog(null)} />}
+      {addDialog === 'peca'    && <AddPecaDialog    osId={os.osId} onClose={() => setAddDialog(null)} />}
+      {addDialog === 'insumo'  && <AddInsumoDialog  osId={os.osId} onClose={() => setAddDialog(null)} />}
     </div>
   )
 }

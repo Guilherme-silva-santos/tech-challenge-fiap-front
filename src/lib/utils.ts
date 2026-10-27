@@ -33,13 +33,13 @@ export const STATUS_LABEL: Record<Status, string> = {
 }
 
 export const STATUS_COLOR: Record<Status, string> = {
-  recebida: 'bg-slate-100 text-slate-700',
-  em_diagnostico: 'bg-blue-100 text-blue-700',
-  aguardando_aprovacao: 'bg-yellow-100 text-yellow-700',
-  em_execucao: 'bg-orange-100 text-orange-700',
-  finalizada: 'bg-green-100 text-green-700',
-  entregue: 'bg-emerald-100 text-emerald-700',
-  rejeitada: 'bg-red-100 text-red-700',
+  recebida:             'border-transparent !bg-[#ECEAE4] !text-[#3F3C36]',
+  em_diagnostico:       'border-transparent !bg-[#E3ECF8] !text-[#1E4E8C]',
+  aguardando_aprovacao: 'border-transparent !bg-[#FCEFC7] !text-[#7A4A00]',
+  em_execucao:          'border-transparent !bg-[#FBE4D2] !text-[#9A3412]',
+  finalizada:           'border-transparent !bg-[#DDF0E3] !text-[#1C5E33]',
+  entregue:             'border-transparent !bg-[#1F1E1B] !text-white',
+  rejeitada:            'border-transparent !bg-[#FDECEA] !text-[#B42318]',
 }
 
 export const STATUS_ORDER: Status[] = [
