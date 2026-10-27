@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,21 +20,22 @@ interface ConfirmDialogProps {
 
 export function ConfirmDialog({
   trigger,
-  title = 'Confirmar exclusão',
-  description = 'Esta ação não pode ser desfeita.',
+  title,
+  description,
   onConfirm,
 }: ConfirmDialogProps) {
+  const { t } = useTranslation()
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          <AlertDialogTitle>{title ?? t('common.confirmDelete')}</AlertDialogTitle>
+          <AlertDialogDescription>{description ?? t('common.cannotUndo')}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>Confirmar</AlertDialogAction>
+          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>{t('common.confirm')}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

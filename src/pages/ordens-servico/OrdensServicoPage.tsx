@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowRight, Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 import { type CreateOSDto } from '@/api/ordens-servico'
@@ -11,7 +12,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { SearchInput } from '@/components/SearchInput'
 import { StatusPill } from '@/components/StatusPill'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useClientes } from '@/hooks/queries/use-clientes'
@@ -19,18 +20,22 @@ import { useCreateOrdemServico, useDeleteOS, useOrdensServico } from '@/hooks/qu
 import { useUsuarios } from '@/hooks/queries/use-usuarios'
 import { useVeiculos } from '@/hooks/queries/use-veiculos'
 import { toast } from '@/hooks/use-toast'
-import { formatCurrency, formatDate, STATUS_LABEL, STATUS_ORDER } from '@/lib/utils'
+import { formatCurrency, formatDate, STATUS_ORDER } from '@/lib/utils'
 import type { Status } from '@/types'
 
 const schema = z.object({
   mecanicoId: z.coerce.number().min(1),
-  clienteId: z.string().uuid('Selecione um cliente'),
-  veiculoId: z.string().uuid('Selecione um veículo'),
+  clienteId: z.string().uuid(),
+  veiculoId: z.string().uuid(),
 })
 type FormValues = z.infer<typeof schema>
 
 function NovaOSDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation()
   const createMutation = useCreateOrdemServico()
+  const clienteErrId = useId()
+  const veiculoErrId = useId()
+  const mecanicoErrId = useId()
   const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({ resolver: zodResolver(schema) })
   const { data: mecanicos = [] } = useUsuarios()
   const { data: clientes = [] } = useClientes()
@@ -40,12 +45,12 @@ function NovaOSDialog({ open, onClose }: { open: boolean; onClose: () => void })
     try {
       const dto: CreateOSDto = values
       await createMutation.mutateAsync(dto)
-      toast({ title: 'Ordem de serviço criada', variant: 'success' })
+      toast({ title: t('workOrders.created'), variant: 'success' })
       reset()
       onClose()
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast({ title: 'Erro', description: msg ?? 'Tente novamente.', variant: 'destructive' })
+      toast({ title: t('common.error'), description: msg ?? t('common.tryAgain'), variant: 'destructive' })
     }
   }
 
@@ -54,39 +59,39 @@ function NovaOSDialog({ open, onClose }: { open: boolean; onClose: () => void })
       <DialogContent style={{ maxWidth: 520, borderRadius: 16, padding: 0, overflow: 'hidden', animation: 'pop .45s .08s cubic-bezier(.2,.8,.2,1) both' }}>
         <div style={{ padding: '24px 28px 8px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)' }}>Etapa inicial: Recebida</span>
-            <DialogTitle style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 28 }}>Nova ordem de serviço</DialogTitle>
+            <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)' }}>{t('workOrders.initialStage')}</span>
+            <DialogTitle style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 28 }}>{t('workOrders.dialogTitle')}</DialogTitle>
           </div>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="anim-rise anim-d2" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Label htmlFor="clienteId" style={{ fontSize: 14, fontWeight: 600 }}>Cliente</Label>
+            <Label htmlFor="clienteId" style={{ fontSize: 14, fontWeight: 600 }}>{t('workOrders.formClient')}</Label>
             <Select onValueChange={(v) => setValue('clienteId', v)}>
-              <SelectTrigger id="clienteId"><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
+              <SelectTrigger id="clienteId"><SelectValue placeholder={t('workOrders.selectClient')} /></SelectTrigger>
               <SelectContent>{clientes.map((c) => <SelectItem key={c.clienteId} value={c.clienteId}>{c.nome} — {c.numDocumento}</SelectItem>)}</SelectContent>
             </Select>
-            {errors.clienteId && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.clienteId.message}</p>}
+            {errors.clienteId && <p id={clienteErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.selectClient')}</p>}
           </div>
           <div className="anim-rise anim-d3" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Label htmlFor="veiculoId" style={{ fontSize: 14, fontWeight: 600 }}>Veículo</Label>
+            <Label htmlFor="veiculoId" style={{ fontSize: 14, fontWeight: 600 }}>{t('workOrders.formVehicle')}</Label>
             <Select onValueChange={(v) => setValue('veiculoId', v)}>
-              <SelectTrigger id="veiculoId"><SelectValue placeholder="Selecione o veículo" /></SelectTrigger>
+              <SelectTrigger id="veiculoId"><SelectValue placeholder={t('workOrders.selectVehicle')} /></SelectTrigger>
               <SelectContent>{veiculos.map((v) => <SelectItem key={v.veiculoId} value={v.veiculoId}>{v.placa} — {v.marca} {v.modelo}</SelectItem>)}</SelectContent>
             </Select>
-            {errors.veiculoId && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.veiculoId.message}</p>}
+            {errors.veiculoId && <p id={veiculoErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.selectVehicle')}</p>}
           </div>
           <div className="anim-rise anim-d4" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Label htmlFor="mecanicoId" style={{ fontSize: 14, fontWeight: 600 }}>Mecânico responsável</Label>
+            <Label htmlFor="mecanicoId" style={{ fontSize: 14, fontWeight: 600 }}>{t('workOrders.formMechanic')}</Label>
             <Select onValueChange={(v) => setValue('mecanicoId', Number(v))}>
-              <SelectTrigger id="mecanicoId"><SelectValue placeholder="Selecione o mecânico" /></SelectTrigger>
+              <SelectTrigger id="mecanicoId"><SelectValue placeholder={t('workOrders.selectMechanic')} /></SelectTrigger>
               <SelectContent>{mecanicos.filter(m => m.roles === 'mecanico').map((m) => <SelectItem key={m.idUsuario} value={String(m.idUsuario)}>{m.nome}</SelectItem>)}</SelectContent>
             </Select>
-            {errors.mecanicoId && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>Selecione um mecânico</p>}
+            {errors.mecanicoId && <p id={mecanicoErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('workOrders.selectMechanicErr')}</p>}
           </div>
           <input type="hidden" {...register('mecanicoId')} />
           <DialogFooter style={{ paddingTop: 8, borderTop: '1px solid var(--line-soft)', marginTop: 4 }}>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Criando…' : 'Criar OS'}</Button>
+            <Button type="button" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? t('workOrders.creating') : t('workOrders.createBtn')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -94,12 +99,8 @@ function NovaOSDialog({ open, onClose }: { open: boolean; onClose: () => void })
   )
 }
 
-const ALL_STATUS: { id: Status | 'todas'; label: string }[] = [
-  { id: 'todas', label: 'Todas' },
-  ...STATUS_ORDER.map(s => ({ id: s, label: STATUS_LABEL[s] })),
-]
-
 export function OrdensServicoPage() {
+  const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -108,6 +109,11 @@ export function OrdensServicoPage() {
   const { data: ordens = [], isLoading } = useOrdensServico(statusFilter ? { status: statusFilter } : undefined)
   const { data: all = [] } = useOrdensServico()
   const deleteMutation = useDeleteOS()
+
+  const ALL_STATUS: { id: Status | 'todas'; label: string }[] = [
+    { id: 'todas', label: t('workOrders.filterAll') },
+    ...STATUS_ORDER.map(s => ({ id: s, label: t(`status.${s}`) })),
+  ]
 
   const countFor = (s: Status | 'todas') =>
     s === 'todas' ? all.length : all.filter(o => o.status === s).length
@@ -122,9 +128,9 @@ export function OrdensServicoPage() {
 
         <PageHeader
           className="anim-rise anim-d1"
-          eyebrow="Operação"
-          title="Ordens de serviço"
-          description="Todas as OS da oficina, da entrada à entrega."
+          eyebrow={t('workOrders.eyebrow')}
+          title={t('workOrders.title')}
+          description={t('workOrders.description')}
           action={
             <button
               type="button"
@@ -134,17 +140,17 @@ export function OrdensServicoPage() {
               onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
             >
               <Plus size={18} aria-hidden="true" style={{ transition: 'transform .3s' }} />
-              Nova OS
+              {t('workOrders.new')}
             </button>
           }
         />
 
         <div className="anim-rise anim-d2" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <SearchInput
-            placeholder="Buscar cliente ou placa"
+            placeholder={t('workOrders.searchPlaceholder')}
             value={search}
             onChange={setSearch}
-            label="Buscar cliente ou placa"
+            label={t('workOrders.searchLabel')}
             style={{ flex: '1 1 240px', maxWidth: 340 } as React.CSSProperties}
           />
           <div role="group" aria-label="Filtrar por status" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -176,22 +182,30 @@ export function OrdensServicoPage() {
           </div>
         </div>
 
-        <section className="anim-rise anim-d3" aria-label="Lista de ordens de serviço" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+        <section
+          className="anim-rise anim-d3"
+          aria-label={t('workOrders.sectionLabel')}
+          aria-busy={isLoading}
+          aria-live="polite"
+          style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}
+        >
           {isLoading ? (
-            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>Carregando…</div>
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>{t('common.loading')}</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)', animation: 'rise .5s both' }}>
-              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>Nenhuma OS nesta etapa</strong>
-              {statusFilter ? `Quando uma ordem chegar em "${STATUS_LABEL[statusFilter]}", ela aparece aqui.` : 'Nenhuma ordem de serviço cadastrada.'}
+              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>{t('workOrders.noFound')}</strong>
+              {statusFilter
+                ? t('common.noResults', { query: t(`status.${statusFilter}`) })
+                : t('workOrders.firstRegister')}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr>
-                    {['Cliente', 'Veículo', 'Mecânico', 'Status', 'Valor final', 'Criada em', ''].map((h, i) => (
+                    {([t('workOrders.colClient'), t('workOrders.colVehicle'), t('workOrders.mechanic').replace(':', ''), t('workOrders.colStatus'), t('workOrders.colTotal'), t('workOrders.colDate'), ''] as const).map((h, i) => (
                       <th key={i} scope="col" style={{ textAlign: i === 4 ? 'right' : 'left', fontWeight: 600, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-muted)' }}>
-                        {i === 6 ? <span className="sr-only">Ações</span> : h}
+                        {i === 6 ? <span className="sr-only">{t('common.actions')}</span> : h}
                       </th>
                     ))}
                   </tr>
@@ -220,6 +234,7 @@ export function OrdensServicoPage() {
                         <div className="row-acts" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, opacity: .75, transition: 'opacity .2s' }}>
                           <Link
                             to={`/ordens-servico/${os.osId}`}
+                            aria-label={`Abrir OS de ${os.cliente.nome}`}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, padding: '0 14px', borderRadius: 8, border: '1px solid var(--field-border)', fontSize: 13, fontWeight: 600, textDecoration: 'none', color: 'var(--ink)', transition: 'border-color .2s, color .2s' }}
                             onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
                             onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--field-border)'; e.currentTarget.style.color = 'var(--ink)' }}
@@ -228,14 +243,14 @@ export function OrdensServicoPage() {
                           </Link>
                           <ConfirmDialog
                             trigger={
-                              <IconButton variant="danger" aria-label={`Excluir OS de ${os.cliente.nome}`}>
+                              <IconButton variant="danger" aria-label={t('workOrders.deleteDesc', { id: os.osId })}>
                                 <Trash2 size={18} aria-hidden="true" />
                               </IconButton>
                             }
-                            description={`Remover a OS de ${os.cliente.nome}?`}
+                            description={t('workOrders.deleteDesc', { id: os.osId })}
                             onConfirm={() => deleteMutation.mutate(os.osId, {
-                              onSuccess: () => toast({ title: 'OS removida', variant: 'success' }),
-                              onError: () => toast({ title: 'Erro ao remover', variant: 'destructive' }),
+                              onSuccess: () => toast({ title: t('workOrders.deleted'), variant: 'success' }),
+                              onError: () => toast({ title: t('common.error'), variant: 'destructive' }),
                             })}
                           />
                         </div>
