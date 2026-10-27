@@ -1,5 +1,5 @@
+import { useTranslation } from 'react-i18next'
 import type { Status } from '@/types'
-import { STATUS_LABEL } from '@/lib/utils'
 
 const STATUS_STYLES: Record<Status, { background: string; color: string }> = {
   recebida:             { background: '#ECEAE4', color: '#3F3C36' },
@@ -17,6 +17,7 @@ interface StatusPillProps {
 }
 
 export function StatusPill({ status, className }: StatusPillProps) {
+  const { t } = useTranslation()
   const s = STATUS_STYLES[status]
   return (
     <span
@@ -44,7 +45,7 @@ export function StatusPill({ status, className }: StatusPillProps) {
           flexShrink: 0,
         }}
       />
-      {STATUS_LABEL[status]}
+      {t(`status.${status}`)}
     </span>
   )
 }

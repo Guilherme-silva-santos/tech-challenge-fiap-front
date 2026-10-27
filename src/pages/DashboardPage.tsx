@@ -1,21 +1,25 @@
 import { ArrowRight, Plus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusPill } from '@/components/StatusPill'
 import { useOrdensServico, useTempoMedio } from '@/hooks/queries/use-ordens-servico'
-import { formatCurrency, formatDate, STATUS_LABEL, STATUS_ORDER } from '@/lib/utils'
+import { formatCurrency, formatDate, STATUS_ORDER } from '@/lib/utils'
 import type { Status } from '@/types'
 
-const ESTEIRA: { status: Status; short: string; num: string }[] = [
-  { status: 'recebida',             short: 'Recebida',           num: '01' },
-  { status: 'em_diagnostico',       short: 'Em diagnóstico',     num: '02' },
-  { status: 'aguardando_aprovacao', short: 'Aguard. aprovação',  num: '03' },
-  { status: 'em_execucao',          short: 'Em execução',        num: '04' },
-  { status: 'finalizada',           short: 'Finalizada',         num: '05' },
-  { status: 'entregue',             short: 'Entregue',           num: '06' },
-]
+type EsteirastageKey = 'recebida' | 'em_diagnostico' | 'aguardando_aprovacao' | 'em_execucao' | 'finalizada' | 'entregue'
+
+const ESTEIRA_NUMS: Record<EsteirastageKey, string> = {
+  recebida: '01',
+  em_diagnostico: '02',
+  aguardando_aprovacao: '03',
+  em_execucao: '04',
+  finalizada: '05',
+  entregue: '06',
+}
 
 export function DashboardPage() {
+  const { t } = useTranslation()
   const { data: ordens = [] } = useOrdensServico()
   const { data: tempoMedio } = useTempoMedio()
 
@@ -28,7 +32,8 @@ export function DashboardPage() {
   const aguardando = countByStatus('aguardando_aprovacao')
   const entregues  = countByStatus('entregue')
 
-  const esteraCounts = ESTEIRA.map(({ status }) => countByStatus(status))
+  const esteiraKeys = STATUS_ORDER.slice(0, 6) as EsteirastageKey[]
+  const esteraCounts = esteiraKeys.map((s) => countByStatus(s as Status))
   const maxCount = Math.max(...esteraCounts, 1)
 
   const recent = [...ordens]
@@ -39,14 +44,14 @@ export function DashboardPage() {
     ? `${tempoMedio.tempoMedioHoras.toFixed(1)} h`
     : '—'
   const tempoSub = tempoMedio
-    ? `${tempoMedio.tempoMedioMinutos.toFixed(0)} min em média`
-    : 'Nenhuma OS finalizada ainda'
+    ? t('dashboard.kpiAvgTimeDetail', { min: tempoMedio.tempoMedioMinutos.toFixed(0) })
+    : t('dashboard.kpiNoFinalized')
 
   const kpis = [
-    { label: 'OS em andamento',       value: emAndamento,  sub: `de ${ordens.length} no total` },
-    { label: 'Tempo médio de execução', value: tempoLabel, sub: tempoSub },
-    { label: 'Aguardando aprovação',   value: aguardando,  sub: aguardando === 0 ? 'Nenhum orçamento pendente' : 'Orçamento aguardando ok' },
-    { label: 'Entregues',              value: entregues,   sub: 'Carros devolvidos ao cliente' },
+    { label: t('dashboard.kpiInProgress'), value: emAndamento, sub: t('dashboard.kpiOfTotal', { count: ordens.length }) },
+    { label: t('dashboard.kpiAvgTime'), value: tempoLabel, sub: tempoSub },
+    { label: t('dashboard.kpiAwaiting'), value: aguardando, sub: aguardando === 0 ? t('dashboard.kpiNoPending') : t('dashboard.kpiQuoteAwaiting') },
+    { label: t('dashboard.kpiDelivered'), value: entregues, sub: t('dashboard.kpiCarsReturn') },
   ]
 
   return (
@@ -55,9 +60,9 @@ export function DashboardPage() {
 
         <PageHeader
           className="anim-rise anim-d1"
-          eyebrow="Operação"
-          title="Painel da oficina"
-          description="Visão geral das ordens de serviço."
+          eyebrow={t('dashboard.eyebrow')}
+          title={t('dashboard.title')}
+          description={t('dashboard.description')}
           action={
             <Link
               to="/ordens-servico"
@@ -66,7 +71,7 @@ export function DashboardPage() {
               onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
             >
               <Plus size={18} aria-hidden="true" style={{ transition: 'transform .3s' }} />
-              Nova OS
+              {t('dashboard.newWO')}
             </Link>
           }
         />
@@ -93,20 +98,20 @@ export function DashboardPage() {
         >
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h2 id="esteira-titulo" style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 22 }}>Esteira de serviço</h2>
+              <h2 id="esteira-titulo" style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 22 }}>{t('dashboard.pipeline')}</h2>
               <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse-accent 1.8s infinite', flexShrink: 0 }} />
             </div>
             <Link
               to="/ordens-servico"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, fontSize: 14, fontWeight: 600, textDecoration: 'none', color: 'var(--accent)', transition: 'color .2s' }}
             >
-              Ver todas as OS
+              {t('dashboard.viewAll')}
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-            {ESTEIRA.map(({ status, short, num }, i) => {
+            {esteiraKeys.map((status, i) => {
               const count = esteraCounts[i]
               const active = count > 0
               const pct = `${Math.round((count / maxCount) * 100)}%`
@@ -125,7 +130,7 @@ export function DashboardPage() {
                   onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; if (!active) e.currentTarget.style.borderColor = 'var(--line)' }}
                 >
                   <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: active ? 'var(--accent-hover)' : 'var(--muted)' }}>
-                    {num} · {short}
+                    {ESTEIRA_NUMS[status]} · {t(`dashboard.stages.${status}`)}
                   </span>
                   <span style={{ fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 34, lineHeight: 1, color: 'var(--ink)' }}>
                     {count}
@@ -146,7 +151,7 @@ export function DashboardPage() {
             style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}
           >
             <div style={{ padding: '20px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 id="recentes-titulo" style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 22 }}>Ordens recentes</h2>
+              <h2 id="recentes-titulo" style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 600, fontSize: 22 }}>{t('dashboard.recentOrders')}</h2>
             </div>
             {recent.map((os, i) => (
               <Link
@@ -159,7 +164,7 @@ export function DashboardPage() {
               >
                 <span style={{ flex: '1 1 180px', display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <strong style={{ fontSize: 15 }}>{os.cliente.nome}</strong>
-                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>Mecânico: {os.mecanico.nome}</span>
+                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>{t('dashboard.mechanic')} {os.mecanico.nome}</span>
                 </span>
                 <span style={{ flex: '1 1 160px', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, padding: '2px 8px', border: '1.5px solid var(--ink)', borderRadius: 5, background: 'var(--surface)', letterSpacing: '.04em' }}>

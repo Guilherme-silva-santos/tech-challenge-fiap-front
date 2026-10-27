@@ -1,5 +1,6 @@
 import { ArrowLeft, Check, Mail, Package, Plus, Trash2, Wrench, Zap, Clock } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { IconButton } from '@/components/IconButton'
@@ -15,7 +16,7 @@ import { useAddInsumo, useAddPeca, useAddServico, useAprovarOrcamento, useOrdemS
 import { usePecas } from '@/hooks/queries/use-pecas'
 import { useServicos } from '@/hooks/queries/use-servicos'
 import { toast } from '@/hooks/use-toast'
-import { formatCurrency, formatDate, STATUS_LABEL, STATUS_ORDER } from '@/lib/utils'
+import { formatCurrency, formatDate, STATUS_ORDER } from '@/lib/utils'
 import type { Status } from '@/types'
 
 const PROXIMO_PASSO: Record<Status, { msg: string; btn?: string } | null> = {
@@ -29,6 +30,7 @@ const PROXIMO_PASSO: Record<Status, { msg: string; btn?: string } | null> = {
 }
 
 function Stepper({ current }: { current: Status }) {
+  const { t } = useTranslation()
   const currentIdx = STATUS_ORDER.indexOf(current)
   const steps = STATUS_ORDER.slice(0, 6)
   return (
@@ -56,7 +58,7 @@ function Stepper({ current }: { current: Status }) {
                 {done ? <Check size={14} strokeWidth={3} aria-hidden="true" /> : String(i + 1).padStart(2, '0')}
               </span>
               <span style={{ fontSize: 13, color: (done || cur) ? 'var(--ink)' : 'var(--muted)', fontWeight: cur ? 600 : undefined, paddingRight: 12 }}>
-                {STATUS_LABEL[s]}
+                {t(`status.${s}`)}
               </span>
             </li>
           )
@@ -206,6 +208,7 @@ function EmptyState({ title, desc }: { title: string; desc: string }) {
 }
 
 export function OrdemServicoDetailPage() {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const [addDialog, setAddDialog] = useState<AddDialog>(null)
 
@@ -217,8 +220,8 @@ export function OrdemServicoDetailPage() {
   const removePecaMutation = useRemovePeca(id!)
   const removeInsumoMutation = useRemoveInsumo(id!)
 
-  if (isLoading) return <div style={{ padding: '48px 40px', color: 'var(--muted)' }}>Carregando…</div>
-  if (!os) return <div style={{ padding: '48px 40px', color: 'var(--muted)' }}>OS não encontrada.</div>
+  if (isLoading) return <div style={{ padding: '48px 40px', color: 'var(--muted)' }} aria-busy="true">{t('common.loading')}</div>
+  if (!os) return <div style={{ padding: '48px 40px', color: 'var(--muted)' }}>{t('workOrders.noFound')}</div>
 
   const shortId = os.osId.slice(0, 8).toUpperCase()
   const currentIdx = STATUS_ORDER.indexOf(os.status)
@@ -365,8 +368,8 @@ export function OrdemServicoDetailPage() {
                         <div>
                           <strong style={{ fontSize: 14 }}>
                             {h.statusAnterior
-                              ? `${STATUS_LABEL[h.statusAnterior]} → ${STATUS_LABEL[h.statusNovo]}`
-                              : `OS criada · ${STATUS_LABEL[h.statusNovo]}`}
+                              ? `${t(`status.${h.statusAnterior}`)} → ${t(`status.${h.statusNovo}`)}`
+                              : `OS criada · ${t(`status.${h.statusNovo}`)}`}
                           </strong>
                           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{formatDate(h.criadoEm)}</div>
                         </div>

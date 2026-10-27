@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { type CreateInsumoDto } from '@/api/insumos'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -9,7 +10,7 @@ import { IconButton } from '@/components/IconButton'
 import { PageHeader } from '@/components/PageHeader'
 import { SearchInput } from '@/components/SearchInput'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCreateInsumo, useDeleteInsumo, useInsumos, useUpdateInsumo } from '@/hooks/queries/use-insumos'
@@ -18,9 +19,9 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Insumo } from '@/types'
 
 const schema = z.object({
-  nome: z.string().min(1, 'Nome obrigatório'),
-  qtdEstoque: z.coerce.number().int().min(0, 'Quantidade inválida'),
-  valorUn: z.coerce.number().min(0, 'Valor inválido'),
+  nome: z.string().min(1),
+  qtdEstoque: z.coerce.number().int().min(0),
+  valorUn: z.coerce.number().min(0),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -38,8 +39,12 @@ function StockBadge({ qty }: { qty: number }) {
 }
 
 function InsumoDialog({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: Insumo | null }) {
+  const { t } = useTranslation()
   const createMutation = useCreateInsumo()
   const updateMutation = useUpdateInsumo()
+  const nomeErrId = useId()
+  const qtyErrId = useId()
+  const valorErrId = useId()
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
@@ -52,15 +57,15 @@ function InsumoDialog({ open, onClose, editing }: { open: boolean; onClose: () =
       const dto: CreateInsumoDto = values
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.insumoId, dto })
-        toast({ title: 'Insumo atualizado', variant: 'success' })
+        toast({ title: t('supplies.updated'), variant: 'success' })
       } else {
         await createMutation.mutateAsync(dto)
-        toast({ title: 'Insumo criado', variant: 'success' })
+        toast({ title: t('supplies.created'), variant: 'success' })
       }
       onClose()
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast({ title: 'Erro', description: msg ?? 'Tente novamente.', variant: 'destructive' })
+      toast({ title: t('common.error'), description: msg ?? t('common.tryAgain'), variant: 'destructive' })
     }
   }
 
@@ -68,32 +73,50 @@ function InsumoDialog({ open, onClose, editing }: { open: boolean; onClose: () =
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent style={{ maxWidth: 480, borderRadius: 16, padding: 0, overflow: 'hidden', animation: 'pop .45s .08s cubic-bezier(.2,.8,.2,1) both' }}>
         <div style={{ padding: '24px 28px 8px' }}>
-          <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)', display: 'block', marginBottom: 4 }}>Catálogo e estoque</span>
+          <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)', display: 'block', marginBottom: 4 }}>{t('supplies.formEyebrow')}</span>
           <DialogTitle style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 26 }}>
-            {editing ? 'Editar insumo' : 'Novo insumo'}
+            {editing ? t('supplies.editTitle') : t('supplies.newTitle')}
           </DialogTitle>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Label>Nome</Label>
-            <Input placeholder="Óleo 5W30" {...register('nome')} />
-            {errors.nome && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.nome.message}</p>}
+            <Label>{t('supplies.formName')}</Label>
+            <Input
+              placeholder="Óleo 5W30"
+              aria-invalid={!!errors.nome}
+              aria-describedby={errors.nome ? nomeErrId : undefined}
+              {...register('nome')}
+            />
+            {errors.nome && <p id={nomeErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.nameRequired')}</p>}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Label>Qtd. estoque</Label>
-              <Input type="number" min={0} {...register('qtdEstoque')} />
-              {errors.qtdEstoque && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.qtdEstoque.message}</p>}
+              <Label>{t('supplies.formQty')}</Label>
+              <Input
+                type="number"
+                min={0}
+                aria-invalid={!!errors.qtdEstoque}
+                aria-describedby={errors.qtdEstoque ? qtyErrId : undefined}
+                {...register('qtdEstoque')}
+              />
+              {errors.qtdEstoque && <p id={qtyErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.qtyInvalid')}</p>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Label>Valor unitário (R$)</Label>
-              <Input type="number" step="0.01" min={0} {...register('valorUn')} />
-              {errors.valorUn && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.valorUn.message}</p>}
+              <Label>{t('supplies.formPrice')}</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                aria-invalid={!!errors.valorUn}
+                aria-describedby={errors.valorUn ? valorErrId : undefined}
+                {...register('valorUn')}
+              />
+              {errors.valorUn && <p id={valorErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.valueInvalid')}</p>}
             </div>
           </div>
           <DialogFooter style={{ paddingTop: 8, borderTop: '1px solid var(--line-soft)', marginTop: 4 }}>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Salvando…' : 'Salvar'}</Button>
+            <Button type="button" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? t('common.saving') : t('common.save')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -102,6 +125,7 @@ function InsumoDialog({ open, onClose, editing }: { open: boolean; onClose: () =
 }
 
 export function InsumosPage() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Insumo | null>(null)
   const [search, setSearch] = useState('')
@@ -117,9 +141,9 @@ export function InsumosPage() {
 
         <PageHeader
           className="anim-rise anim-d1"
-          eyebrow="Catálogo e estoque"
-          title="Insumos"
-          description="Óleos, fluidos e materiais de consumo da oficina."
+          eyebrow={t('supplies.eyebrow')}
+          title={t('supplies.title')}
+          description={t('supplies.description')}
           action={
             <button
               type="button"
@@ -129,37 +153,43 @@ export function InsumosPage() {
               onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
             >
               <Plus size={18} aria-hidden="true" />
-              Novo insumo
+              {t('supplies.new')}
             </button>
           }
         />
 
         <div className="anim-rise anim-d2">
           <SearchInput
-            label="Buscar insumo"
-            placeholder="Buscar insumo…"
+            label={t('supplies.searchLabel')}
+            placeholder={t('supplies.searchPlaceholder')}
             value={search}
             onChange={setSearch}
             style={{ flex: '1 1 240px', maxWidth: 340 } as React.CSSProperties}
           />
         </div>
 
-        <section className="anim-rise anim-d3" aria-label="Lista de insumos" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+        <section
+          className="anim-rise anim-d3"
+          aria-label={t('supplies.sectionLabel')}
+          aria-busy={isLoading}
+          aria-live="polite"
+          style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}
+        >
           {isLoading ? (
-            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>Carregando…</div>
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>{t('common.loading')}</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
-              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>Nenhum insumo encontrado</strong>
-              {search ? `Nenhum resultado para "${search}".` : 'Cadastre o primeiro insumo.'}
+              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>{t('supplies.noFound')}</strong>
+              {search ? t('common.noResults', { query: search }) : t('supplies.firstRegister')}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr>
-                    {['Nome', 'Estoque', 'Valor un.', 'Atualizado em', ''].map((h, i) => (
+                    {([t('supplies.colName'), t('supplies.colQty'), t('supplies.colPrice'), t('supplies.colDate'), ''] as const).map((h, i) => (
                       <th key={i} scope={i < 4 ? 'col' : undefined} style={{ textAlign: i === 2 ? 'right' : 'left', fontWeight: 600, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-muted)' }}>
-                        {i === 4 ? <span className="sr-only">Ações</span> : h}
+                        {i === 4 ? <span className="sr-only">{t('common.actions')}</span> : h}
                       </th>
                     ))}
                   </tr>
@@ -181,15 +211,15 @@ export function InsumosPage() {
                       <td style={{ padding: '14px 20px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: 'var(--muted)' }}>{formatDate(item.atualizadoEm)}</td>
                       <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                         <div className="row-acts" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, opacity: .75, transition: 'opacity .2s' }}>
-                          <IconButton aria-label={`Editar ${item.nome}`} onClick={() => { setEditing(item); setOpen(true) }}>
+                          <IconButton aria-label={t('supplies.editBtn', { name: item.nome })} onClick={() => { setEditing(item); setOpen(true) }}>
                             <Pencil size={18} aria-hidden="true" />
                           </IconButton>
                           <ConfirmDialog
-                            trigger={<IconButton variant="danger" aria-label={`Excluir ${item.nome}`}><Trash2 size={18} aria-hidden="true" /></IconButton>}
-                            description={`Remover o insumo "${item.nome}"?`}
+                            trigger={<IconButton variant="danger" aria-label={t('supplies.deleteBtn', { name: item.nome })}><Trash2 size={18} aria-hidden="true" /></IconButton>}
+                            description={t('supplies.deleteDesc', { name: item.nome })}
                             onConfirm={() => deleteMutation.mutate(item.insumoId, {
-                              onSuccess: () => toast({ title: 'Insumo removido', variant: 'success' }),
-                              onError: () => toast({ title: 'Erro ao remover', variant: 'destructive' }),
+                              onSuccess: () => toast({ title: t('supplies.deleted'), variant: 'success' }),
+                              onError: () => toast({ title: t('common.error'), variant: 'destructive' }),
                             })}
                           />
                         </div>

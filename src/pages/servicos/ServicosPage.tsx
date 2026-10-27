@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { type CreateServicoDto } from '@/api/servicos'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -9,7 +10,7 @@ import { IconButton } from '@/components/IconButton'
 import { PageHeader } from '@/components/PageHeader'
 import { SearchInput } from '@/components/SearchInput'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCreateServico, useDeleteServico, useServicos, useUpdateServico } from '@/hooks/queries/use-servicos'
@@ -18,14 +19,17 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Servico } from '@/types'
 
 const schema = z.object({
-  descricao: z.string().min(1, 'Descrição obrigatória'),
-  valor: z.coerce.number().min(0, 'Valor inválido'),
+  descricao: z.string().min(1),
+  valor: z.coerce.number().min(0),
 })
 type FormValues = z.infer<typeof schema>
 
 function ServicoDialog({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: Servico | null }) {
+  const { t } = useTranslation()
   const createMutation = useCreateServico()
   const updateMutation = useUpdateServico()
+  const descErrId = useId()
+  const valorErrId = useId()
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
@@ -38,15 +42,15 @@ function ServicoDialog({ open, onClose, editing }: { open: boolean; onClose: () 
       const dto: CreateServicoDto = values
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.servicoId, dto })
-        toast({ title: 'Serviço atualizado', variant: 'success' })
+        toast({ title: t('services.updated'), variant: 'success' })
       } else {
         await createMutation.mutateAsync(dto)
-        toast({ title: 'Serviço criado', variant: 'success' })
+        toast({ title: t('services.created'), variant: 'success' })
       }
       onClose()
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast({ title: 'Erro', description: msg ?? 'Tente novamente.', variant: 'destructive' })
+      toast({ title: t('common.error'), description: msg ?? t('common.tryAgain'), variant: 'destructive' })
     }
   }
 
@@ -54,25 +58,37 @@ function ServicoDialog({ open, onClose, editing }: { open: boolean; onClose: () 
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent style={{ maxWidth: 480, borderRadius: 16, padding: 0, overflow: 'hidden', animation: 'pop .45s .08s cubic-bezier(.2,.8,.2,1) both' }}>
         <div style={{ padding: '24px 28px 8px' }}>
-          <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)', display: 'block', marginBottom: 4 }}>Catálogo e estoque</span>
+          <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)', display: 'block', marginBottom: 4 }}>{t('services.formEyebrow')}</span>
           <DialogTitle style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 26 }}>
-            {editing ? 'Editar serviço' : 'Novo serviço'}
+            {editing ? t('services.editTitle') : t('services.newTitle')}
           </DialogTitle>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Label>Descrição</Label>
-            <Input placeholder="Troca de óleo e filtro" {...register('descricao')} />
-            {errors.descricao && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.descricao.message}</p>}
+            <Label>{t('services.formName')}</Label>
+            <Input
+              placeholder="Troca de óleo e filtro"
+              aria-invalid={!!errors.descricao}
+              aria-describedby={errors.descricao ? descErrId : undefined}
+              {...register('descricao')}
+            />
+            {errors.descricao && <p id={descErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.descRequired')}</p>}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Label>Valor (R$)</Label>
-            <Input type="number" step="0.01" min={0} {...register('valor')} />
-            {errors.valor && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.valor.message}</p>}
+            <Label>{t('services.formPrice')}</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min={0}
+              aria-invalid={!!errors.valor}
+              aria-describedby={errors.valor ? valorErrId : undefined}
+              {...register('valor')}
+            />
+            {errors.valor && <p id={valorErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.valueInvalid')}</p>}
           </div>
           <DialogFooter style={{ paddingTop: 8, borderTop: '1px solid var(--line-soft)', marginTop: 4 }}>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Salvando…' : 'Salvar'}</Button>
+            <Button type="button" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? t('common.saving') : t('common.save')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -81,6 +97,7 @@ function ServicoDialog({ open, onClose, editing }: { open: boolean; onClose: () 
 }
 
 export function ServicosPage() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Servico | null>(null)
   const [search, setSearch] = useState('')
@@ -96,9 +113,9 @@ export function ServicosPage() {
 
         <PageHeader
           className="anim-rise anim-d1"
-          eyebrow="Catálogo e estoque"
-          title="Serviços"
-          description="Tabela de preços dos serviços da oficina."
+          eyebrow={t('services.eyebrow')}
+          title={t('services.title')}
+          description={t('services.description')}
           action={
             <button
               type="button"
@@ -108,37 +125,43 @@ export function ServicosPage() {
               onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
             >
               <Plus size={18} aria-hidden="true" />
-              Novo serviço
+              {t('services.new')}
             </button>
           }
         />
 
         <div className="anim-rise anim-d2">
           <SearchInput
-            label="Buscar serviço"
-            placeholder="Buscar serviço…"
+            label={t('services.searchLabel')}
+            placeholder={t('services.searchPlaceholder')}
             value={search}
             onChange={setSearch}
             style={{ flex: '1 1 240px', maxWidth: 340 } as React.CSSProperties}
           />
         </div>
 
-        <section className="anim-rise anim-d3" aria-label="Lista de serviços" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+        <section
+          className="anim-rise anim-d3"
+          aria-label={t('services.sectionLabel')}
+          aria-busy={isLoading}
+          aria-live="polite"
+          style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}
+        >
           {isLoading ? (
-            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>Carregando…</div>
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>{t('common.loading')}</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
-              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>Nenhum serviço encontrado</strong>
-              {search ? `Nenhum resultado para "${search}".` : 'Cadastre o primeiro serviço.'}
+              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>{t('services.noFound')}</strong>
+              {search ? t('common.noResults', { query: search }) : t('services.firstRegister')}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr>
-                    {['Descrição', 'Valor', 'Atualizado em', ''].map((h, i) => (
+                    {([t('services.colName'), t('services.colPrice'), t('services.colDate'), ''] as const).map((h, i) => (
                       <th key={i} scope={i < 3 ? 'col' : undefined} style={{ textAlign: i === 1 ? 'right' : 'left', fontWeight: 600, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-muted)' }}>
-                        {i === 3 ? <span className="sr-only">Ações</span> : h}
+                        {i === 3 ? <span className="sr-only">{t('common.actions')}</span> : h}
                       </th>
                     ))}
                   </tr>
@@ -159,15 +182,15 @@ export function ServicosPage() {
                       <td style={{ padding: '14px 20px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: 'var(--muted)' }}>{formatDate(s.atualizadoEm)}</td>
                       <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                         <div className="row-acts" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, opacity: .75, transition: 'opacity .2s' }}>
-                          <IconButton aria-label={`Editar ${s.descricao}`} onClick={() => { setEditing(s); setOpen(true) }}>
+                          <IconButton aria-label={t('services.editBtn', { name: s.descricao })} onClick={() => { setEditing(s); setOpen(true) }}>
                             <Pencil size={18} aria-hidden="true" />
                           </IconButton>
                           <ConfirmDialog
-                            trigger={<IconButton variant="danger" aria-label={`Excluir ${s.descricao}`}><Trash2 size={18} aria-hidden="true" /></IconButton>}
-                            description={`Remover o serviço "${s.descricao}"?`}
+                            trigger={<IconButton variant="danger" aria-label={t('services.deleteBtn', { name: s.descricao })}><Trash2 size={18} aria-hidden="true" /></IconButton>}
+                            description={t('services.deleteDesc', { name: s.descricao })}
                             onConfirm={() => deleteMutation.mutate(s.servicoId, {
-                              onSuccess: () => toast({ title: 'Serviço removido', variant: 'success' }),
-                              onError: () => toast({ title: 'Erro ao remover', variant: 'destructive' }),
+                              onSuccess: () => toast({ title: t('services.deleted'), variant: 'success' }),
+                              onError: () => toast({ title: t('common.error'), variant: 'destructive' }),
                             })}
                           />
                         </div>

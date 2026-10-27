@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { type CreateClienteDto } from '@/api/clientes'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -9,7 +10,7 @@ import { IconButton } from '@/components/IconButton'
 import { PageHeader } from '@/components/PageHeader'
 import { SearchInput } from '@/components/SearchInput'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -19,10 +20,10 @@ import { formatDate } from '@/lib/utils'
 import type { Cliente, Tipo } from '@/types'
 
 const schema = z.object({
-  numDocumento: z.string().min(11, 'CPF/CNPJ inválido'),
-  nome: z.string().min(1, 'Nome obrigatório'),
-  email: z.string().email('E-mail inválido').optional().or(z.literal('')),
-  telefone: z.string().min(10, 'Telefone inválido'),
+  numDocumento: z.string().min(11),
+  nome: z.string().min(1),
+  email: z.string().email().optional().or(z.literal('')),
+  telefone: z.string().min(10),
   tipo: z.enum(['pessoa_fisica', 'pessoa_juridica']),
 })
 type FormValues = z.infer<typeof schema>
@@ -32,8 +33,13 @@ function getInitials(name: string) {
 }
 
 function ClienteDialog({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: Cliente | null }) {
+  const { t } = useTranslation()
   const createMutation = useCreateCliente()
   const updateMutation = useUpdateCliente()
+  const docErrId = useId()
+  const nomeErrId = useId()
+  const emailErrId = useId()
+  const telefoneErrId = useId()
   const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { tipo: 'pessoa_fisica' },
@@ -49,15 +55,15 @@ function ClienteDialog({ open, onClose, editing }: { open: boolean; onClose: () 
       const dto: CreateClienteDto = { ...values, email: values.email || undefined }
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.clienteId, dto })
-        toast({ title: 'Cliente atualizado', variant: 'success' })
+        toast({ title: t('clients.updated'), variant: 'success' })
       } else {
         await createMutation.mutateAsync(dto)
-        toast({ title: 'Cliente criado', variant: 'success' })
+        toast({ title: t('clients.created'), variant: 'success' })
       }
       onClose()
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
-      toast({ title: 'Erro', description: Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Tente novamente.'), variant: 'destructive' })
+      toast({ title: t('common.error'), description: Array.isArray(msg) ? msg.join(', ') : (msg ?? t('common.tryAgain')), variant: 'destructive' })
     }
   }
 
@@ -65,47 +71,71 @@ function ClienteDialog({ open, onClose, editing }: { open: boolean; onClose: () 
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent style={{ maxWidth: 520, borderRadius: 16, padding: 0, overflow: 'hidden', animation: 'pop .45s .08s cubic-bezier(.2,.8,.2,1) both' }}>
         <div style={{ padding: '24px 28px 8px' }}>
-          <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)', display: 'block', marginBottom: 4 }}>Cadastros</span>
+          <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--accent-hover)', display: 'block', marginBottom: 4 }}>{t('clients.formEyebrow')}</span>
           <DialogTitle style={{ margin: 0, fontFamily: 'Barlow, sans-serif', fontWeight: 700, fontSize: 26 }}>
-            {editing ? 'Editar cliente' : 'Novo cliente'}
+            {editing ? t('clients.editTitle') : t('clients.newTitle')}
           </DialogTitle>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Label>Tipo</Label>
+              <Label>{t('clients.formType')}</Label>
               <Select defaultValue={editing?.tipo ?? 'pessoa_fisica'} onValueChange={(v) => setValue('tipo', v as FormValues['tipo'])}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pessoa_fisica">Pessoa Física</SelectItem>
-                  <SelectItem value="pessoa_juridica">Pessoa Jurídica</SelectItem>
+                  <SelectItem value="pessoa_fisica">{t('clients.typePessoaFisica')}</SelectItem>
+                  <SelectItem value="pessoa_juridica">{t('clients.typePessoaJuridica')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Label>CPF / CNPJ</Label>
-              <Input placeholder="111.444.777-35" {...register('numDocumento')} />
-              {errors.numDocumento && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.numDocumento.message}</p>}
+              <Label>{t('clients.formDocument')}</Label>
+              <Input
+                placeholder="111.444.777-35"
+                aria-invalid={!!errors.numDocumento}
+                aria-describedby={errors.numDocumento ? docErrId : undefined}
+                {...register('numDocumento')}
+              />
+              {errors.numDocumento && <p id={docErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.cpfCnpjInvalid')}</p>}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Label>Nome</Label>
-            <Input placeholder="João da Silva" {...register('nome')} />
-            {errors.nome && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.nome.message}</p>}
+            <Label>{t('clients.formName')}</Label>
+            <Input
+              placeholder="João da Silva"
+              aria-invalid={!!errors.nome}
+              aria-describedby={errors.nome ? nomeErrId : undefined}
+              {...register('nome')}
+            />
+            {errors.nome && <p id={nomeErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.nameRequired')}</p>}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Label>E-mail <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>(opcional — necessário para envio de orçamento)</span></Label>
-            <Input placeholder="joao@email.com" type="email" {...register('email')} />
-            {errors.email && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.email.message}</p>}
+            <Label>
+              {t('clients.formEmail')}{' '}
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>{t('clients.formEmailHint')}</span>
+            </Label>
+            <Input
+              placeholder="joao@email.com"
+              type="email"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? emailErrId : undefined}
+              {...register('email')}
+            />
+            {errors.email && <p id={emailErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.emailInvalid')}</p>}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Label>Telefone</Label>
-            <Input placeholder="11999998888" {...register('telefone')} />
-            {errors.telefone && <p style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{errors.telefone.message}</p>}
+            <Label>{t('clients.formPhone')}</Label>
+            <Input
+              placeholder="11999998888"
+              aria-invalid={!!errors.telefone}
+              aria-describedby={errors.telefone ? telefoneErrId : undefined}
+              {...register('telefone')}
+            />
+            {errors.telefone && <p id={telefoneErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.phoneInvalid')}</p>}
           </div>
           <DialogFooter style={{ paddingTop: 8, borderTop: '1px solid var(--line-soft)', marginTop: 4 }}>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Salvando…' : 'Salvar'}</Button>
+            <Button type="button" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? t('common.saving') : t('common.save')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -114,13 +144,9 @@ function ClienteDialog({ open, onClose, editing }: { open: boolean; onClose: () 
 }
 
 type TipoFilter = 'todos' | 'pf' | 'pj'
-const SEGS: { id: TipoFilter; label: string }[] = [
-  { id: 'todos', label: 'Todos' },
-  { id: 'pf', label: 'Pessoa física' },
-  { id: 'pj', label: 'Pessoa jurídica' },
-]
 
 export function ClientesPage() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Cliente | null>(null)
   const [search, setSearch] = useState('')
@@ -128,6 +154,12 @@ export function ClientesPage() {
 
   const { data: clientes = [], isLoading } = useClientes()
   const deleteMutation = useDeleteCliente()
+
+  const SEGS: { id: TipoFilter; label: string }[] = [
+    { id: 'todos', label: t('clients.filterAll') },
+    { id: 'pf', label: t('clients.filterIndividual') },
+    { id: 'pj', label: t('clients.filterCompany') },
+  ]
 
   const filtered = clientes.filter((c) => {
     const matchSearch = !search || c.nome.toLowerCase().includes(search.toLowerCase()) || c.numDocumento.includes(search)
@@ -141,7 +173,7 @@ export function ClientesPage() {
     const pj = tipo === 'pessoa_juridica'
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: pj ? 'var(--sidebar)' : '#ECEAE4', color: pj ? '#fff' : 'var(--ink-2)', whiteSpace: 'nowrap' }}>
-        {pj ? 'PJ' : 'PF'}
+        {pj ? t('clients.typePJ') : t('clients.typePF')}
       </span>
     )
   }
@@ -152,9 +184,9 @@ export function ClientesPage() {
 
         <PageHeader
           className="anim-rise anim-d1"
-          eyebrow="Cadastros"
-          title="Clientes"
-          description="Pessoas e empresas atendidas pela oficina."
+          eyebrow={t('clients.eyebrow')}
+          title={t('clients.title')}
+          description={t('clients.description')}
           action={
             <button
               type="button"
@@ -164,20 +196,20 @@ export function ClientesPage() {
               onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'none' }}
             >
               <Plus size={18} aria-hidden="true" />
-              Novo cliente
+              {t('clients.new')}
             </button>
           }
         />
 
         <div className="anim-rise anim-d2" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <SearchInput
-            label="Buscar por nome ou documento"
-            placeholder="Buscar por nome ou documento"
+            label={t('clients.searchLabel')}
+            placeholder={t('clients.searchPlaceholder')}
             value={search}
             onChange={setSearch}
             style={{ flex: '1 1 240px', maxWidth: 340 } as React.CSSProperties}
           />
-          <div role="group" aria-label="Tipo de cliente" style={{ display: 'inline-flex', padding: 3, borderRadius: 10, background: '#EAE8E2', gap: 2 }}>
+          <div role="group" aria-label={t('clients.filterGroup')} style={{ display: 'inline-flex', padding: 3, borderRadius: 10, background: '#EAE8E2', gap: 2 }}>
             {SEGS.map(({ id, label }) => {
               const active = tipoFilter === id
               return (
@@ -195,22 +227,28 @@ export function ClientesPage() {
           </div>
         </div>
 
-        <section className="anim-rise anim-d3" aria-label="Lista de clientes" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+        <section
+          className="anim-rise anim-d3"
+          aria-label={t('clients.sectionLabel')}
+          aria-busy={isLoading}
+          aria-live="polite"
+          style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}
+        >
           {isLoading ? (
-            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>Carregando…</div>
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>{t('common.loading')}</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
-              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>Nenhum cliente encontrado</strong>
-              {search ? `Nenhum resultado para "${search}".` : 'Cadastre o primeiro cliente.'}
+              <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>{t('clients.noFound')}</strong>
+              {search ? t('clients.noFoundSearch', { query: search }) : t('clients.firstRegister')}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', minWidth: 820, borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr>
-                    {['Nome', 'Documento', 'Telefone', 'Tipo', 'Cadastrado em', ''].map((h, i) => (
+                    {([t('clients.colName'), t('clients.colDocument'), t('clients.colPhone'), t('clients.colType'), t('clients.colDate'), ''] as const).map((h, i) => (
                       <th key={i} scope={i < 5 ? 'col' : undefined} style={{ textAlign: 'left', fontWeight: 600, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-muted)' }}>
-                        {i === 5 ? <span className="sr-only">Ações</span> : h}
+                        {i === 5 ? <span className="sr-only">{t('common.actions')}</span> : h}
                       </th>
                     ))}
                   </tr>
@@ -228,7 +266,7 @@ export function ClientesPage() {
                       >
                         <td style={{ padding: '12px 20px' }}>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                            <span style={{ width: 36, height: 36, borderRadius: '50%', background: pj ? 'var(--sidebar)' : '#ECEAE4', color: pj ? '#F28C28' : 'var(--ink-2)', fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span aria-hidden="true" style={{ width: 36, height: 36, borderRadius: '50%', background: pj ? 'var(--sidebar)' : '#ECEAE4', color: pj ? '#F28C28' : 'var(--ink-2)', fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                               {getInitials(c.nome)}
                             </span>
                             <strong>{c.nome}</strong>
@@ -240,15 +278,15 @@ export function ClientesPage() {
                         <td style={{ padding: '12px 20px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: 'var(--muted)' }}>{formatDate(c.criadoEm)}</td>
                         <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                           <div className="row-acts" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, opacity: .75, transition: 'opacity .2s' }}>
-                            <IconButton aria-label={`Editar ${c.nome}`} onClick={() => { setEditing(c); setOpen(true) }}>
+                            <IconButton aria-label={t('clients.editBtn', { name: c.nome })} onClick={() => { setEditing(c); setOpen(true) }}>
                               <Pencil size={18} aria-hidden="true" />
                             </IconButton>
                             <ConfirmDialog
-                              trigger={<IconButton variant="danger" aria-label={`Excluir ${c.nome}`}><Trash2 size={18} aria-hidden="true" /></IconButton>}
-                              description={`Remover o cliente "${c.nome}"?`}
+                              trigger={<IconButton variant="danger" aria-label={t('clients.deleteBtn', { name: c.nome })}><Trash2 size={18} aria-hidden="true" /></IconButton>}
+                              description={t('clients.deleteDesc', { name: c.nome })}
                               onConfirm={() => deleteMutation.mutate(c.clienteId, {
-                                onSuccess: () => toast({ title: 'Cliente removido', variant: 'success' }),
-                                onError: () => toast({ title: 'Erro ao remover', variant: 'destructive' }),
+                                onSuccess: () => toast({ title: t('clients.deleted'), variant: 'success' }),
+                                onError: () => toast({ title: t('common.error'), variant: 'destructive' }),
                               })}
                             />
                           </div>
