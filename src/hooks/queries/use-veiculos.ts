@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { type CreateVeiculoDto, veiculosApi } from '@/api/veiculos'
+import { type CreateVeiculoDto, type UpdateVeiculoDto, veiculosApi } from '@/api/veiculos'
+import { CLIENTES_KEY } from '@/hooks/queries/use-clientes'
 
 export const VEICULOS_KEY = ['veiculos'] as const
 
@@ -18,27 +19,36 @@ export function useVeiculo(id: string) {
   })
 }
 
-export function useCreateVeiculo() {
+// GET /clientes traz os veículos de cada cliente, então ele também precisa ser recarregado
+function useInvalidateVeiculos() {
   const qc = useQueryClient()
+  return () => Promise.all([
+    qc.invalidateQueries({ queryKey: VEICULOS_KEY }),
+    qc.invalidateQueries({ queryKey: CLIENTES_KEY }),
+  ])
+}
+
+export function useCreateVeiculo() {
+  const invalidate = useInvalidateVeiculos()
   return useMutation({
     mutationFn: (dto: CreateVeiculoDto) => veiculosApi.create(dto),
-    onSuccess: () => qc.invalidateQueries({ queryKey: VEICULOS_KEY }),
+    onSuccess: invalidate,
   })
 }
 
 export function useUpdateVeiculo() {
-  const qc = useQueryClient()
+  const invalidate = useInvalidateVeiculos()
   return useMutation({
-    mutationFn: ({ id, dto }: { id: string; dto: Partial<CreateVeiculoDto> }) =>
+    mutationFn: ({ id, dto }: { id: string; dto: Partial<UpdateVeiculoDto> }) =>
       veiculosApi.update(id, dto),
-    onSuccess: () => qc.invalidateQueries({ queryKey: VEICULOS_KEY }),
+    onSuccess: invalidate,
   })
 }
 
 export function useDeleteVeiculo() {
-  const qc = useQueryClient()
+  const invalidate = useInvalidateVeiculos()
   return useMutation({
     mutationFn: (id: string) => veiculosApi.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: VEICULOS_KEY }),
+    onSuccess: invalidate,
   })
 }
