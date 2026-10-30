@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowRight, Plus, Trash2 } from 'lucide-react'
+import { ArrowRight, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useClientes } from '@/hooks/queries/use-clientes'
 import { useCreateOrdemServico, useDeleteOS, useOrdensServico } from '@/hooks/queries/use-ordens-servico'
 import { useUsuarios } from '@/hooks/queries/use-usuarios'
-import { useVeiculos } from '@/hooks/queries/use-veiculos'
 import { toast } from '@/hooks/use-toast'
 import { formatCurrency, formatDate, STATUS_ORDER } from '@/lib/utils'
 import type { Status } from '@/types'
@@ -35,19 +34,30 @@ function NovaOSDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const createMutation = useCreateOrdemServico()
   const clienteErrId = useId()
   const veiculoErrId = useId()
+  const semVeiculoId = useId()
   const mecanicoErrId = useId()
-  const { register, handleSubmit, setValue, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  const { register, handleSubmit, setValue, reset, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({ resolver: zodResolver(schema) })
   const { data: mecanicos = [] } = useUsuarios()
   const { data: clientes = [] } = useClientes()
-  const { data: veiculos = [] } = useVeiculos()
+  const clienteId = watch('clienteId')
+  const veiculoId = watch('veiculoId')
+  const veiculos = clientes.find((c) => c.clienteId === clienteId)?.veiculos ?? []
+  const semVeiculo = !!clienteId && veiculos.length === 0
+  const veiculoPlaceholder = !clienteId
+    ? t('workOrders.selectClientFirst')
+    : veiculos.length === 0 ? t('workOrders.noVehiclesForClient') : t('workOrders.selectVehicle')
+
+  const handleClose = () => {
+    reset()
+    onClose()
+  }
 
   const onSubmit = async (values: FormValues) => {
     try {
       const dto: CreateOSDto = values
       await createMutation.mutateAsync(dto)
       toast({ title: t('workOrders.created'), variant: 'success' })
-      reset()
-      onClose()
+      handleClose()
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast({ title: t('common.error'), description: msg ?? t('common.tryAgain'), variant: 'destructive' })
@@ -55,7 +65,7 @@ function NovaOSDialog({ open, onClose }: { open: boolean; onClose: () => void })
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) { reset(); onClose() } }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose() }}>
       <DialogContent style={{ maxWidth: 520, borderRadius: 16, padding: 0, overflow: 'hidden', animation: 'pop .45s .08s cubic-bezier(.2,.8,.2,1) both' }}>
         <div style={{ padding: '24px 28px 8px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -66,7 +76,7 @@ function NovaOSDialog({ open, onClose }: { open: boolean; onClose: () => void })
         <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="anim-rise anim-d2" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label htmlFor="clienteId" style={{ fontSize: 14, fontWeight: 600 }}>{t('workOrders.formClient')}</Label>
-            <Select onValueChange={(v) => setValue('clienteId', v)}>
+            <Select value={clienteId ?? ''} onValueChange={(v) => { setValue('clienteId', v); setValue('veiculoId', '') }}>
               <SelectTrigger id="clienteId"><SelectValue placeholder={t('workOrders.selectClient')} /></SelectTrigger>
               <SelectContent>{clientes.map((c) => <SelectItem key={c.clienteId} value={c.clienteId}>{c.nome} — {c.numDocumento}</SelectItem>)}</SelectContent>
             </Select>
@@ -74,10 +84,19 @@ function NovaOSDialog({ open, onClose }: { open: boolean; onClose: () => void })
           </div>
           <div className="anim-rise anim-d3" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label htmlFor="veiculoId" style={{ fontSize: 14, fontWeight: 600 }}>{t('workOrders.formVehicle')}</Label>
-            <Select onValueChange={(v) => setValue('veiculoId', v)}>
-              <SelectTrigger id="veiculoId"><SelectValue placeholder={t('workOrders.selectVehicle')} /></SelectTrigger>
+            <Select value={veiculoId ?? ''} onValueChange={(v) => setValue('veiculoId', v)} disabled={veiculos.length === 0}>
+              <SelectTrigger id="veiculoId" aria-describedby={semVeiculo ? semVeiculoId : undefined}><SelectValue placeholder={veiculoPlaceholder} /></SelectTrigger>
               <SelectContent>{veiculos.map((v) => <SelectItem key={v.veiculoId} value={v.veiculoId}>{v.placa} — {v.marca} {v.modelo}</SelectItem>)}</SelectContent>
             </Select>
+            {semVeiculo && (
+              <div id={semVeiculoId} role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderRadius: 10, background: 'var(--accent-soft-bg)', border: '1px solid var(--accent-soft-border)', fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)' }}>
+                <TriangleAlert size={18} aria-hidden="true" style={{ flex: 'none', marginTop: 1, color: 'var(--accent)' }} />
+                <span>
+                  {t('workOrders.noVehicleWarning')}{' '}
+                  <Link to={`/veiculos?cliente=${clienteId}`} style={{ color: 'var(--accent-hover)', fontWeight: 600 }}>{t('workOrders.registerVehicle')}</Link>
+                </span>
+              </div>
+            )}
             {errors.veiculoId && <p id={veiculoErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.selectVehicle')}</p>}
           </div>
           <div className="anim-rise anim-d4" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -90,8 +109,8 @@ function NovaOSDialog({ open, onClose }: { open: boolean; onClose: () => void })
           </div>
           <input type="hidden" {...register('mecanicoId')} />
           <DialogFooter style={{ paddingTop: 8, borderTop: '1px solid var(--line-soft)', marginTop: 4 }}>
-            <Button type="button" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? t('workOrders.creating') : t('workOrders.createBtn')}</Button>
+            <Button type="button" variant="outline" onClick={handleClose}>{t('common.cancel')}</Button>
+            <Button type="submit" disabled={isSubmitting || semVeiculo}>{isSubmitting ? t('workOrders.creating') : t('workOrders.createBtn')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

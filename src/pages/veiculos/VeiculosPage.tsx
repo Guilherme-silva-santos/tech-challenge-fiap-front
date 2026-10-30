@@ -3,8 +3,8 @@ import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
-import { type CreateVeiculoDto } from '@/api/veiculos'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { IconButton } from '@/components/IconButton'
 import { PageHeader } from '@/components/PageHeader'
@@ -13,44 +13,55 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useClientes } from '@/hooks/queries/use-clientes'
 import { useCreateVeiculo, useDeleteVeiculo, useUpdateVeiculo, useVeiculos } from '@/hooks/queries/use-veiculos'
 import { toast } from '@/hooks/use-toast'
 import { formatDate } from '@/lib/utils'
 import type { Veiculo } from '@/types'
 
 const schema = z.object({
+  clienteId: z.string(),
   placa: z.string().min(7),
   marca: z.string().min(1),
   modelo: z.string().min(1),
   ano: z.string().min(4),
   cor: z.string().min(1),
 })
+// O vínculo com o cliente só é definido na criação; o PATCH da API não aceita clienteId
+const createSchema = schema.extend({ clienteId: z.string().uuid() })
 type FormValues = z.infer<typeof schema>
 
-function VeiculoDialog({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: Veiculo | null }) {
+const TODOS_CLIENTES = 'todos'
+
+function VeiculoDialog({ open, onClose, editing, clienteInicial }: { open: boolean; onClose: () => void; editing: Veiculo | null; clienteInicial: string | null }) {
   const { t } = useTranslation()
   const createMutation = useCreateVeiculo()
   const updateMutation = useUpdateVeiculo()
+  const clienteErrId = useId()
   const placaErrId = useId()
   const marcaErrId = useId()
   const modeloErrId = useId()
   const anoErrId = useId()
   const corErrId = useId()
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  const { data: clientes = [] } = useClientes()
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormValues>({ resolver: zodResolver(editing ? schema : createSchema) })
+  const clienteId = watch('clienteId')
 
   useEffect(() => {
-    if (editing) reset({ placa: editing.placa, marca: editing.marca, modelo: editing.modelo, ano: editing.ano, cor: editing.cor })
-    else reset({ placa: '', marca: '', modelo: '', ano: '', cor: '' })
-  }, [editing, reset])
+    if (!open) return
+    if (editing) reset({ clienteId: '', placa: editing.placa, marca: editing.marca, modelo: editing.modelo, ano: editing.ano, cor: editing.cor })
+    else reset({ clienteId: clienteInicial ?? '', placa: '', marca: '', modelo: '', ano: '', cor: '' })
+  }, [open, editing, clienteInicial, reset])
 
-  const onSubmit = async (values: FormValues) => {
+  const onSubmit = async ({ clienteId: donoId, ...values }: FormValues) => {
     try {
-      const dto: CreateVeiculoDto = { ...values, placa: values.placa.toUpperCase().replace(/-/g, '') }
+      const dto = { ...values, placa: values.placa.toUpperCase().replace(/-/g, '') }
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.veiculoId, dto })
         toast({ title: t('vehicles.updated'), variant: 'success' })
       } else {
-        await createMutation.mutateAsync(dto)
+        await createMutation.mutateAsync({ ...dto, clienteId: donoId })
         toast({ title: t('vehicles.created'), variant: 'success' })
       }
       onClose()
@@ -70,6 +81,18 @@ function VeiculoDialog({ open, onClose, editing }: { open: boolean; onClose: () 
           </DialogTitle>
         </div>
         <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {!editing && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Label htmlFor="veiculoClienteId">{t('vehicles.formClient')}</Label>
+              <Select value={clienteId} onValueChange={(v) => setValue('clienteId', v)}>
+                <SelectTrigger id="veiculoClienteId" aria-invalid={!!errors.clienteId} aria-describedby={errors.clienteId ? clienteErrId : undefined}>
+                  <SelectValue placeholder={t('vehicles.selectClient')} />
+                </SelectTrigger>
+                <SelectContent>{clientes.map((c) => <SelectItem key={c.clienteId} value={c.clienteId}>{c.nome} — {c.numDocumento}</SelectItem>)}</SelectContent>
+              </Select>
+              {errors.clienteId && <p id={clienteErrId} role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--danger)' }}>{t('validation.selectClient')}</p>}
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Label>{t('vehicles.formPlate')}</Label>
             <Input
@@ -141,12 +164,20 @@ export function VeiculosPage() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Veiculo | null>(null)
   const [search, setSearch] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const { data: veiculos = [], isLoading } = useVeiculos()
+  const clienteFilter = searchParams.get('cliente')
+  const { data: veiculos = [], isLoading: isLoadingVeiculos } = useVeiculos()
+  const { data: clientes = [], isLoading: isLoadingClientes } = useClientes()
+  const isLoading = isLoadingVeiculos || isLoadingClientes
   const deleteMutation = useDeleteVeiculo()
 
+  const donosDoVeiculo = (veiculoId: string) => clientes.filter((c) => c.veiculos.some((cv) => cv.veiculoId === veiculoId))
+  const veiculosDoCliente = clientes.find((c) => c.clienteId === clienteFilter)?.veiculos ?? []
+
   const filtered = veiculos.filter(
-    (v) => !search || v.placa.toLowerCase().includes(search.toLowerCase()) || v.marca.toLowerCase().includes(search.toLowerCase()) || v.modelo.toLowerCase().includes(search.toLowerCase()),
+    (v) => (!clienteFilter || veiculosDoCliente.some((cv) => cv.veiculoId === v.veiculoId))
+      && (!search || v.placa.toLowerCase().includes(search.toLowerCase()) || v.marca.toLowerCase().includes(search.toLowerCase()) || v.modelo.toLowerCase().includes(search.toLowerCase())),
   )
 
   return (
@@ -172,7 +203,7 @@ export function VeiculosPage() {
           }
         />
 
-        <div className="anim-rise anim-d2">
+        <div className="anim-rise anim-d2" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <SearchInput
             label={t('vehicles.searchLabel')}
             placeholder={t('vehicles.searchPlaceholder')}
@@ -180,6 +211,15 @@ export function VeiculosPage() {
             onChange={setSearch}
             style={{ flex: '1 1 240px', maxWidth: 340 } as React.CSSProperties}
           />
+          <Select value={clienteFilter ?? TODOS_CLIENTES} onValueChange={(v) => setSearchParams(v === TODOS_CLIENTES ? {} : { cliente: v })}>
+            <SelectTrigger aria-label={t('vehicles.filterClientLabel')} style={{ flex: '1 1 200px', maxWidth: 280, height: 44, padding: '0 14px', borderRadius: 8, border: '1px solid var(--field-border)', background: 'var(--surface)', fontSize: 14, color: 'var(--ink)' }}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS_CLIENTES}>{t('vehicles.filterAllClients')}</SelectItem>
+              {clientes.map((c) => <SelectItem key={c.clienteId} value={c.clienteId}>{c.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
 
         <section
@@ -194,16 +234,16 @@ export function VeiculosPage() {
           ) : filtered.length === 0 ? (
             <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
               <strong style={{ display: 'block', fontSize: 16, color: 'var(--ink)', marginBottom: 4 }}>{t('vehicles.noFound')}</strong>
-              {search ? t('vehicles.noFoundSearch', { query: search }) : t('vehicles.firstRegister')}
+              {search ? t('vehicles.noFoundSearch', { query: search }) : clienteFilter ? t('vehicles.noFoundClient') : t('vehicles.firstRegister')}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse', fontSize: 14 }}>
+              <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr>
-                    {([t('vehicles.colPlate'), `${t('vehicles.colBrand')} / ${t('vehicles.colModel')}`, t('vehicles.colYear'), t('vehicles.colColor'), t('vehicles.colDate'), ''] as const).map((h, i) => (
-                      <th key={i} scope={i < 5 ? 'col' : undefined} style={{ textAlign: 'left', fontWeight: 600, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-muted)' }}>
-                        {i === 5 ? <span className="sr-only">{t('common.actions')}</span> : h}
+                    {([t('vehicles.colPlate'), `${t('vehicles.colBrand')} / ${t('vehicles.colModel')}`, t('vehicles.colClient'), t('vehicles.colYear'), t('vehicles.colColor'), t('vehicles.colDate'), ''] as const).map((h, i) => (
+                      <th key={i} scope={i < 6 ? 'col' : undefined} style={{ textAlign: 'left', fontWeight: 600, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)', padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--surface-muted)' }}>
+                        {i === 6 ? <span className="sr-only">{t('common.actions')}</span> : h}
                       </th>
                     ))}
                   </tr>
@@ -224,6 +264,7 @@ export function VeiculosPage() {
                         </span>
                       </td>
                       <td style={{ padding: '12px 20px' }}><strong>{v.marca}</strong> {v.modelo}</td>
+                      <td style={{ padding: '12px 20px', color: 'var(--ink-2)' }}>{donosDoVeiculo(v.veiculoId).map((c) => c.nome).join(', ') || '—'}</td>
                       <td style={{ padding: '12px 20px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{v.ano}</td>
                       <td style={{ padding: '12px 20px', color: 'var(--ink-2)' }}>{v.cor}</td>
                       <td style={{ padding: '12px 20px', fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: 'var(--muted)' }}>{formatDate(v.criadoEm)}</td>
@@ -251,7 +292,7 @@ export function VeiculosPage() {
         </section>
 
       </div>
-      <VeiculoDialog open={open} onClose={() => setOpen(false)} editing={editing} />
+      <VeiculoDialog open={open} onClose={() => setOpen(false)} editing={editing} clienteInicial={clienteFilter} />
     </div>
   )
 }

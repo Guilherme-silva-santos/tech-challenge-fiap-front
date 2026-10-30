@@ -9,21 +9,21 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-[--accent] text-white hover:bg-[--accent-hover] hover:-translate-y-px focus-visible:shadow-[0_0_0_4px_rgba(194,65,12,.14)]',
+          'bg-(--accent) text-white hover:bg-(--accent-hover) hover:-translate-y-px focus-visible:shadow-[0_0_0_4px_rgba(194,65,12,.14)]',
         outline:
-          'border border-[--line] bg-[--surface] text-[--ink] hover:bg-[--surface-muted] focus-visible:shadow-[0_0_0_4px_rgba(194,65,12,.14)]',
+          'border border-(--line) bg-(--surface) text-(--ink) hover:bg-(--surface-muted) focus-visible:shadow-[0_0_0_4px_rgba(194,65,12,.14)]',
         ghost:
-          'text-[--ink-2] hover:bg-[--surface-muted]',
+          'text-(--ink-2) hover:bg-(--surface-muted)',
         destructive:
-          'bg-[--danger] text-white hover:opacity-90',
+          'bg-(--danger) text-white hover:opacity-90',
         link:
-          'text-[--accent] underline-offset-4 hover:underline',
+          'text-(--accent) underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-11 rounded-[--radius-btn] px-[18px] text-[14px]',
-        sm:      'h-9 rounded-[--radius-btn] px-3 text-[13px]',
-        lg:      'h-12 rounded-[--radius-btn] px-6 text-[15px]',
-        icon:    'h-11 w-11 rounded-[--radius-btn]',
+        default: 'h-11 rounded-(--radius-btn) px-[18px] text-[14px]',
+        sm:      'h-9 rounded-(--radius-btn) px-3 text-[13px]',
+        lg:      'h-12 rounded-(--radius-btn) px-6 text-[15px]',
+        icon:    'h-11 w-11 rounded-(--radius-btn)',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

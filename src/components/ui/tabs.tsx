@@ -10,7 +10,7 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn('flex flex-wrap border-b border-[--line] px-5', className)}
+    className={cn('flex flex-wrap border-b border-(--line) px-5', className)}
     {...props}
   />
 ))
@@ -23,10 +23,10 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'min-h-11 px-1 mr-5 border-0 bg-transparent font-[inherit] text-[14px] font-medium text-[--muted] cursor-pointer border-b-2 border-transparent -mb-px transition-[color,border-color] duration-200',
-      'hover:text-[--ink]',
-      'data-[state=active]:text-[--ink] data-[state=active]:border-[--accent] data-[state=active]:font-semibold',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]',
+      'min-h-11 px-1 mr-5 border-0 bg-transparent font-[inherit] text-[14px] font-medium text-(--muted) cursor-pointer border-b-2 border-transparent -mb-px transition-[color,border-color] duration-200',
+      'hover:text-(--ink)',
+      'data-[state=active]:text-(--ink) data-[state=active]:border-(--accent) data-[state=active]:font-semibold',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)',
       'disabled:pointer-events-none disabled:opacity-50',
       className,
     )}
