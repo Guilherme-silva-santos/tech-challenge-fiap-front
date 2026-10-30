@@ -27,6 +27,7 @@ export interface Cliente {
   tipo: Tipo
   criadoEm: string
   atualizadoEm: string
+  veiculos: Veiculo[]
 }
 
 export interface Veiculo {
