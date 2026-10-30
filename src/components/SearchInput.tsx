@@ -19,8 +19,8 @@ export function SearchInput({ placeholder = 'Buscar…', value, onChange, classN
       htmlFor={inputId}
       style={style}
       className={cn(
-        'flex items-center gap-[10px] min-h-11 px-[14px] border border-[--field-border] rounded-[--radius-btn] bg-[--surface] text-[--muted] transition-[border-color,box-shadow] duration-200 cursor-text',
-        'focus-within:border-[--accent] focus-within:shadow-[0_0_0_4px_rgba(194,65,12,.14)]',
+        'flex items-center gap-[10px] min-h-11 px-[14px] border border-(--field-border) rounded-(--radius-btn) bg-(--surface) text-(--muted) transition-[border-color,box-shadow] duration-200 cursor-text',
+        'focus-within:border-(--accent) focus-within:shadow-[0_0_0_4px_rgba(194,65,12,.14)]',
         className,
       )}
     >
@@ -32,7 +32,7 @@ export function SearchInput({ placeholder = 'Buscar…', value, onChange, classN
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
-        className="border-0 outline-none flex-1 min-w-0 bg-transparent text-[14px] text-[--ink] placeholder:text-[--sidebar-label]"
+        className="border-0 outline-none flex-1 min-w-0 bg-transparent text-[14px] text-(--ink) placeholder:text-(--sidebar-label)"
       />
     </label>
   )

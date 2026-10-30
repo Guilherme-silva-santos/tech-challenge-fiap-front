@@ -8,7 +8,7 @@ interface PlateProps {
 export function Plate({ value, className }: PlateProps) {
   return (
     <span
-      className={cn('inline-flex flex-col overflow-hidden rounded-[4px] border border-[--ink] flex-none', className)}
+      className={cn('inline-flex flex-col overflow-hidden rounded-[4px] border border-(--ink) flex-none', className)}
       style={{ fontSize: 0 }}
     >
       <span
